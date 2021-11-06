@@ -187,6 +187,7 @@ will see you can run e.g.::
     $ ./derrick migrate <app> <prefix>  # run Django migrations
     $ ./derrick migrations <app>  # add new Django migrations (``makemigrations``)
     $ ./derrick messages <locale>  # build messages for i18n
+    $ ./derrick schema  # generate OpenAPI schema file
     $ ./derrick shell  # open Python shell
     $ ./derrick prune  # clean up unused Docker images and containers
     $ ./derrick storybook  # build storybook and run dev server
@@ -218,7 +219,7 @@ container. `VS Code`_ supports this using the `Remote Development`_ extension
 pack.
 
 Once you have the extension pack installed, when you open the Metecho folder
-in VS Code, you will be prompted to "Reopen in Container". Doing so will
+in VS Code, you will be prompted to ``Reopen in Container``. Doing so will
 effectively run ``docker-compose up`` and reload your window, now running inside
 the Docker container. If you do not see the prompt, run the "Remote-Containers:
 Open Folder in Container..." command from the VS Code Command Palette to start

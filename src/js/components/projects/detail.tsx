@@ -1,42 +1,53 @@
 import Button from '@salesforce/design-system-react/components/button';
+import Tabs from '@salesforce/design-system-react/components/tabs';
+import TabsPanel from '@salesforce/design-system-react/components/tabs/panel';
 import i18n from 'i18next';
+import { pick } from 'lodash';
 import React, { useCallback, useEffect, useState } from 'react';
 import DocumentTitle from 'react-document-title';
 import { Trans } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import { Redirect, RouteComponentProps } from 'react-router-dom';
 
-import CreateEpicModal from '~js/components/epics/createForm';
-import EpicTable from '~js/components/epics/table';
-import PlaygroundOrgCard from '~js/components/orgs/playgroundCard';
-import ProjectNotFound from '~js/components/projects/project404';
-import LandingModal from '~js/components/tour/landing';
-import PlanTour from '~js/components/tour/plan';
-import PlayTour from '~js/components/tour/play';
-import TourPopover from '~js/components/tour/popover';
+import CreateEpicModal from '@/js/components/epics/createForm';
+import EpicTable from '@/js/components/epics/table';
+import PlaygroundOrgCard from '@/js/components/orgs/playgroundCard';
+import ProjectNotFound from '@/js/components/projects/project404';
+import CreateTaskModal from '@/js/components/tasks/createForm';
+import TasksTableComponent from '@/js/components/tasks/table';
+import HelpTour, { getDemoTask } from '@/js/components/tour/help';
+import LandingModal from '@/js/components/tour/landing';
+import PlanTour, { getDemoEpic } from '@/js/components/tour/plan';
+import PlayTour, { getDemoOrg } from '@/js/components/tour/play';
+import TourPopover from '@/js/components/tour/popover';
 import {
+  ContributeCallback,
+  ContributeWorkModal,
   CreateOrgModal,
   DetailPageLayout,
   getProjectLoadingOrNotFound,
   LabelWithSpinner,
-  SpinnerWrapper,
+  OrgData,
+  useAssignUserToTask,
   useFetchEpicsIfMissing,
   useFetchOrgsIfMissing,
   useFetchProjectIfMissing,
+  useFetchProjectTasksIfMissing,
   useIsMounted,
-} from '~js/components/utils';
-import { ThunkDispatch } from '~js/store';
-import { fetchObjects } from '~js/store/actions';
-import { onboarded } from '~js/store/user/actions';
-import { User } from '~js/store/user/reducer';
-import { selectUserState } from '~js/store/user/selectors';
+} from '@/js/components/utils';
+import { ThunkDispatch } from '@/js/store';
+import { fetchObjects } from '@/js/store/actions';
+import { Org } from '@/js/store/orgs/reducer';
+import { onboarded } from '@/js/store/user/actions';
+import { User } from '@/js/store/user/reducer';
+import { selectUserState } from '@/js/store/user/selectors';
 import {
   OBJECT_TYPES,
   SHOW_WALKTHROUGH,
   WALKTHROUGH_TYPES,
   WalkthroughType,
-} from '~js/utils/constants';
-import routes from '~js/utils/routes';
+} from '@/js/utils/constants';
+import routes from '@/js/utils/routes';
 
 const ProjectDetail = (
   props: RouteComponentProps<
@@ -47,19 +58,39 @@ const ProjectDetail = (
 ) => {
   const user = useSelector(selectUserState) as User;
   const [fetchingEpics, setFetchingEpics] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createEpicModalOpen, setCreateEpicModalOpen] = useState(false);
+  const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
+  const [convertOrgData, setConvertOrgData] = useState<OrgData | null>(null);
   const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
+  const [contributeModalOpen, setContributeModalOpen] = useState(false);
   const [tourLandingModalOpen, setTourLandingModalOpen] = useState(
     Boolean(window.GLOBALS.ENABLE_WALKTHROUGHS && !user.onboarded_at),
   );
+  const [tasksTabViewed, setTasksTabViewed] = useState(false);
+  const [selectedTabOverride, setSelectedTabOverride] = useState<
+    number | undefined
+  >(undefined);
   const [tourRunning, setTourRunning] = useState<WalkthroughType | null>(null);
+  const [playTourOrg, setPlayTourOrg] = useState<Org | null>(null);
   const isMounted = useIsMounted();
   const dispatch = useDispatch<ThunkDispatch>();
   const { project, projectSlug } = useFetchProjectIfMissing(props);
-  const { epics } = useFetchEpicsIfMissing(project, props);
-  const { orgs } = useFetchOrgsIfMissing({ project, props });
-
-  const playgroundOrg = (orgs || [])[0];
+  const { epics } = useFetchEpicsIfMissing({ projectId: project?.id }, props);
+  const { orgs } = useFetchOrgsIfMissing({ projectId: project?.id }, props);
+  const { tasks } = useFetchProjectTasksIfMissing(
+    {
+      projectId: project?.id,
+      tasksTabViewed,
+    },
+    props,
+  );
+  const assignUser = useAssignUserToTask();
+  const runningPlayTour = tourRunning === WALKTHROUGH_TYPES.PLAY;
+  const runningHelpTour = tourRunning === WALKTHROUGH_TYPES.HELP;
+  const runningPlanTour = tourRunning === WALKTHROUGH_TYPES.PLAN;
+  const playgroundOrg = runningPlayTour
+    ? playTourOrg
+    : ((orgs || [])[0] as Org | undefined);
 
   // Auto-start the tour/walkthrough if `SHOW_WALKTHROUGH` param is truthy
   const {
@@ -105,22 +136,67 @@ const ProjectDetail = (
   }, [dispatch, epics?.next, isMounted, project?.id]);
 
   // "create epic" modal related
-  const openCreateModal = useCallback(() => {
-    setCreateModalOpen(true);
+  const openCreateEpicModal = useCallback(() => {
+    setCreateEpicModalOpen(true);
     setCreateOrgModalOpen(false);
+    setCreateTaskModalOpen(false);
+    setContributeModalOpen(false);
+    setConvertOrgData(null);
   }, []);
-  const closeCreateModal = useCallback(() => {
-    setCreateModalOpen(false);
+  const closeCreateEpicModal = useCallback(() => {
+    setCreateEpicModalOpen(false);
+  }, []);
+
+  // "create task" modal related
+  const openCreateTaskModal = useCallback(() => {
+    setCreateTaskModalOpen(true);
+    setCreateEpicModalOpen(false);
+    setCreateOrgModalOpen(false);
+    setContributeModalOpen(false);
+    setConvertOrgData(null);
+  }, []);
+  const closeCreateTaskModal = useCallback(() => {
+    setCreateTaskModalOpen(false);
   }, []);
 
   // "create scratch org" modal related
   const openCreateOrgModal = useCallback(() => {
     setCreateOrgModalOpen(true);
-    setCreateModalOpen(false);
+    setCreateEpicModalOpen(false);
+    setCreateTaskModalOpen(false);
+    setContributeModalOpen(false);
+    setConvertOrgData(null);
   }, []);
   const closeCreateOrgModal = useCallback(() => {
     setCreateOrgModalOpen(false);
   }, []);
+
+  // "contribute work" modal related:
+  const openContributeModal = () => {
+    setContributeModalOpen(true);
+    setCreateEpicModalOpen(false);
+    setCreateTaskModalOpen(false);
+    setCreateOrgModalOpen(false);
+    setConvertOrgData(null);
+  };
+  const closeContributeModal = useCallback(() => {
+    setContributeModalOpen(false);
+  }, []);
+  const createAndContribute: ContributeCallback = useCallback(
+    (orgData, { createEpicLessTask }) => {
+      setConvertOrgData(orgData);
+      if (createEpicLessTask) {
+        setCreateTaskModalOpen(true);
+        setCreateEpicModalOpen(false);
+      } else {
+        setCreateEpicModalOpen(true);
+        setCreateTaskModalOpen(false);
+      }
+      setCreateOrgModalOpen(false);
+      setContributeModalOpen(false);
+    },
+    [],
+  );
 
   // guided tour related
   const closeTourLandingModal = useCallback(() => {
@@ -139,6 +215,54 @@ const ProjectDetail = (
   );
   const handleTourClose = useCallback(() => {
     setTourRunning(null);
+    setSelectedTabOverride(undefined);
+  }, []);
+  const setTasksTabActive = useCallback(() => {
+    setSelectedTabOverride(1);
+    // Activating the tab programmatically does not fire the
+    // `handleTabSelect` callback to fetch Tasks from the API,
+    // so do that manually:
+    setTasksTabViewed(true);
+  }, []);
+  const demoOrg = getDemoOrg({
+    project: project?.id || null,
+    owner: user.id,
+    owner_gh_username: user.username,
+    owner_gh_id: user.github_id,
+    latest_commit: project?.latest_sha || '',
+  });
+  /* istanbul ignore next */
+  const handlePlayTourStep = useCallback(
+    (index: number) => {
+      switch (index) {
+        case 2:
+          setPlayTourOrg(demoOrg);
+          break;
+        case 4:
+          setTasksTabActive();
+          setPlayTourOrg(null);
+          break;
+        case 5:
+          setSelectedTabOverride(0);
+          break;
+      }
+    },
+    [demoOrg, setTasksTabActive],
+  );
+  /* istanbul ignore next */
+  const handlePlanTourStep = useCallback((index: number) => {
+    switch (index) {
+      case 2:
+        setSelectedTabOverride(0);
+        break;
+    }
+  }, []);
+
+  const handleTabSelect = useCallback((idx: number) => {
+    /* istanbul ignore else */
+    if (idx === 1) {
+      setTasksTabViewed(true);
+    }
   }, []);
 
   const loadingOrNotFound = getProjectLoadingOrNotFound({
@@ -161,8 +285,6 @@ const ProjectDetail = (
     return <Redirect to={routes.project_detail(project.slug)} />;
   }
 
-  const hasEpics = epics && epics.epics.length > 0;
-
   return (
     <DocumentTitle title={`${project.name} | ${i18n.t('Metecho')}`}>
       <DetailPageLayout
@@ -170,6 +292,7 @@ const ProjectDetail = (
         title={project.name}
         titlePopover={
           <TourPopover
+            id="tour-project-name"
             align="bottom left"
             heading={i18n.t('Project name & GitHub link')}
             body={
@@ -192,10 +315,11 @@ const ProjectDetail = (
           <div
             className="slds-m-bottom_x-large
               metecho-secondary-block
-              slds-m-left_medium"
+              tour-scratch-org"
           >
             <div className="slds-is-relative heading">
               <TourPopover
+                id="tour-project-scratch-org"
                 align="top"
                 heading={i18n.t('View & play with a Project')}
                 body={
@@ -212,7 +336,7 @@ const ProjectDetail = (
                 {i18n.t('My Project Scratch Org')}
               </h2>
             </div>
-            {orgs ? (
+            {orgs || runningPlayTour ? (
               <>
                 {playgroundOrg ? (
                   <div
@@ -220,21 +344,18 @@ const ProjectDetail = (
                       slds-wrap
                       slds-grid_pull-padded-x-small"
                   >
-                    <div
-                      className="slds-size_1-of-1
-                        slds-p-around_x-small
-                        tour-scratch-org"
-                    >
+                    <div className="slds-size_1-of-1 slds-p-around_x-small">
                       <PlaygroundOrgCard
                         org={playgroundOrg}
                         project={project}
                         repoUrl={project.repo_url}
+                        openContributeModal={openContributeModal}
                       />
                     </div>
                   </div>
                 ) : (
                   <Button
-                    className="tour-scratch-org"
+                    className="tour-create-scratch-org"
                     label={i18n.t('Create Scratch Org')}
                     variant="outline-brand"
                     onClick={openCreateOrgModal}
@@ -244,6 +365,7 @@ const ProjectDetail = (
             ) : (
               // Fetching scratch orgs from API
               <Button
+                className="tour-scratch-org"
                 label={
                   <LabelWithSpinner label={i18n.t('Loading Scratch Orgs…')} />
                 }
@@ -253,100 +375,160 @@ const ProjectDetail = (
           </div>
         }
       >
-        {!epics || !epics.fetched ? (
-          // Fetching epics from API
-          <SpinnerWrapper />
-        ) : (
-          <>
-            <div className="slds-is-relative heading">
+        <Tabs
+          variant="scoped"
+          onSelect={handleTabSelect}
+          selectedIndex={selectedTabOverride}
+        >
+          <TabsPanel
+            label={
+              <div className="tour-project-epics-list">
+                <TourPopover
+                  id="tour-project-epics-list"
+                  align="top left"
+                  heading={i18n.t('List of Epics')}
+                  body={
+                    <Trans i18nKey="tourEpicsList">
+                      Select the Epics tab to see a list of all Epics for this
+                      Project. Each Epic is a group of related Tasks.
+                    </Trans>
+                  }
+                />
+                {i18n.t('Epics')}
+              </div>
+            }
+          >
+            <div className="slds-m-bottom_medium slds-is-relative">
+              <Button
+                label={
+                  epics?.fetched || tourRunning
+                    ? i18n.t('Create an Epic')
+                    : i18n.t('Loading Epics…')
+                }
+                variant="brand"
+                onClick={openCreateEpicModal}
+                className="tour-create-epic"
+                disabled={
+                  !tourRunning &&
+                  (!project.has_push_permission || !epics?.fetched)
+                }
+              />
               <TourPopover
+                id="tour-project-create-epic"
                 align="top left"
-                heading={i18n.t('List of Epics')}
                 body={
-                  <Trans i18nKey="tourEpicsList">
-                    This is the list of all Epics for this Project. Each Epic is
-                    a group of related Tasks.
+                  <Trans i18nKey="tourCreateEpic">
+                    Create an Epic to make a group of related Tasks. Invite
+                    multiple Collaborators to your Epic and assign people as
+                    Developers and Testers for each Task. Epics are equivalent
+                    to GitHub branches, just like Tasks.
+                  </Trans>
+                }
+                heading={i18n.t('Create Epics to group Tasks')}
+              />
+            </div>
+            <EpicTable
+              epics={
+                /* istanbul ignore next */ tourRunning && !epics?.epics?.length
+                  ? [
+                      getDemoEpic({
+                        project: project.id,
+                        github_id: user.github_id,
+                      }),
+                    ]
+                  : epics?.epics || []
+              }
+              isFetched={Boolean(epics?.fetched)}
+              userHasPermissions={project.has_push_permission}
+              projectSlug={project.slug}
+            />
+            {epics?.epics?.length && epics?.next ? (
+              <div className="slds-m-top_large">
+                <Button
+                  label={
+                    fetchingEpics ? <LabelWithSpinner /> : i18n.t('Load More')
+                  }
+                  onClick={fetchMoreEpics}
+                />
+              </div>
+            ) : /* istanbul ignore next */ null}
+          </TabsPanel>
+          <TabsPanel
+            label={
+              <div className="tour-project-tasks-list">
+                <TourPopover
+                  id="tour-project-tasks-list"
+                  align="top left"
+                  heading={i18n.t('List of Tasks')}
+                  body={
+                    <Trans i18nKey="tourTasksList">
+                      Select the Tasks tab to see a list of all the work being
+                      done on this Project and who is working on it. Tasks
+                      represent small changes to the Project, and may be part of
+                      an Epic.
+                    </Trans>
+                  }
+                />
+                {i18n.t('Tasks')}
+              </div>
+            }
+          >
+            <div className="slds-m-bottom_medium slds-is-relative">
+              <Button
+                label={
+                  tasks || tourRunning
+                    ? i18n.t('Create a Task')
+                    : i18n.t('Loading Tasks…')
+                }
+                variant="brand"
+                className="tour-create-task"
+                onClick={openCreateTaskModal}
+                disabled={
+                  !tourRunning && (!project.has_push_permission || !tasks)
+                }
+              />
+              <TourPopover
+                id="tour-project-add-task"
+                align="top left"
+                heading={i18n.t('Create a Task to contribute')}
+                body={
+                  <Trans i18nKey="tourProjectCreateTask">
+                    To get started contributing to this Project, create a Task.
+                    Tasks represent small changes to this Project; each one has
+                    a Developer and a Tester. Tasks are equivalent to GitHub
+                    branches.
                   </Trans>
                 }
               />
-              <h2 className="slds-text-heading_medium slds-p-bottom_medium">
-                {hasEpics || !project.has_push_permission
-                  ? i18n.t('Epics for {{project_name}}', {
-                      project_name: project.name,
-                    })
-                  : i18n.t('Create an Epic for {{project_name}}', {
-                      project_name: project.name,
-                    })}
-              </h2>
             </div>
-            {!hasEpics && (
-              <p className="slds-m-bottom_large">
-                {project.has_push_permission ? (
-                  <Trans i18nKey="createEpicHelpText">
-                    Epics in Metecho are the high-level features that can be
-                    broken down into smaller parts by creating Tasks. You can
-                    create a new epic or create an epic based on an existing
-                    GitHub branch. Every epic requires a unique epic name, which
-                    becomes the branch name in GitHub unless you choose to use
-                    an existing branch.
-                  </Trans>
-                ) : (
-                  <Trans i18nKey="noEpics">
-                    Epics in Metecho are the high-level features that can be
-                    broken down into smaller parts by creating Tasks. There are
-                    no Epics for this Project.
-                  </Trans>
-                )}
-              </p>
-            )}
-            {project.has_push_permission && (
-              <div className="slds-m-bottom_large slds-is-relative">
-                <Button
-                  label={i18n.t('Create an Epic')}
-                  variant="brand"
-                  onClick={openCreateModal}
-                  className="tour-create-epic"
-                />
-                <TourPopover
-                  align="top left"
-                  body={
-                    <Trans i18nKey="tourCreateEpic">
-                      Create an Epic to make a group of related Tasks. Invite
-                      multiple Collaborators to your Epic and assign people as
-                      Developers and Testers for each Task. Epics are equivalent
-                      to GitHub branches, just like Tasks.
-                    </Trans>
-                  }
-                  heading={i18n.t('Create Epics to group Tasks')}
-                />
-              </div>
-            )}
-            {hasEpics && (
-              <>
-                <EpicTable epics={epics.epics} projectSlug={project.slug} />
-                {epics.next ? (
-                  <div className="slds-m-top_large">
-                    <Button
-                      label={
-                        fetchingEpics ? (
-                          <LabelWithSpinner />
-                        ) : (
-                          i18n.t('Load More')
-                        )
-                      }
-                      onClick={fetchMoreEpics}
-                    />
-                  </div>
-                ) : null}
-              </>
-            )}
-          </>
-        )}
+            <TasksTableComponent
+              projectId={project.id}
+              projectSlug={project.slug}
+              tasks={
+                tourRunning && !tasks?.length
+                  ? [
+                      getDemoTask({
+                        project: project.id,
+                        github_id: user.github_id,
+                      }),
+                    ]
+                  : tasks || []
+              }
+              isFetched={Boolean(tasks)}
+              githubUsers={project.github_users}
+              canAssign={project.has_push_permission}
+              isRefreshingUsers={project.currently_fetching_github_users}
+              assignUserAction={assignUser}
+              viewEpicsColumn
+            />
+          </TabsPanel>
+        </Tabs>
         <CreateEpicModal
           user={user}
           project={project}
-          isOpen={createModalOpen}
-          closeCreateModal={closeCreateModal}
+          isOpen={createEpicModalOpen}
+          playgroundOrgData={convertOrgData}
+          closeCreateModal={closeCreateEpicModal}
         />
         <LandingModal
           isOpen={tourLandingModalOpen}
@@ -354,18 +536,41 @@ const ProjectDetail = (
           onRequestClose={closeTourLandingModal}
         />
         <PlayTour
-          run={tourRunning === WALKTHROUGH_TYPES.PLAY}
+          run={runningPlayTour}
+          onClose={handleTourClose}
+          onBeforeStep={handlePlayTourStep}
+        />
+        <HelpTour
+          run={runningHelpTour}
+          onStart={setTasksTabActive}
           onClose={handleTourClose}
         />
         <PlanTour
-          run={tourRunning === WALKTHROUGH_TYPES.PLAN}
+          run={runningPlanTour}
+          onStart={setTasksTabActive}
           onClose={handleTourClose}
+          onBeforeStep={handlePlanTourStep}
         />
         <CreateOrgModal
           project={project}
           isOpen={createOrgModalOpen}
           closeModal={closeCreateOrgModal}
         />
+        <CreateTaskModal
+          project={project}
+          isOpen={createTaskModalOpen}
+          playgroundOrgData={convertOrgData}
+          closeCreateModal={closeCreateTaskModal}
+        />
+        {playgroundOrg ? (
+          <ContributeWorkModal
+            isOpen={contributeModalOpen}
+            hasPermissions={project.has_push_permission}
+            orgData={pick(playgroundOrg, ['id', 'org_config_name'])}
+            closeModal={closeContributeModal}
+            doContribute={createAndContribute}
+          />
+        ) : null}
       </DetailPageLayout>
     </DocumentTitle>
   );

@@ -1,7 +1,7 @@
 import html
 import logging
 from datetime import timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from allauth.account.signals import user_logged_in
 from allauth.socialaccount.models import SocialAccount
@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models, transaction
+from django.db.models.query_utils import Q
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.template.loader import render_to_string
@@ -109,7 +110,6 @@ class User(HashIdMixin, AbstractUser):
         )
 
     def queue_refresh_repositories(self):
-        """Queue a job to refresh repositories unless we're already doing so"""
         from .jobs import refresh_github_repositories_for_user_job
 
         if not self.currently_fetching_repos:
@@ -117,30 +117,17 @@ class User(HashIdMixin, AbstractUser):
             self.save()
             refresh_github_repositories_for_user_job.delay(self)
 
-    def refresh_repositories(self):
-        try:
-            repos = gh.get_all_org_repos(self)
-            with transaction.atomic():
-                GitHubRepository.objects.filter(user=self).delete()
-                GitHubRepository.objects.bulk_create(
-                    [
-                        GitHubRepository(
-                            user=self,
-                            repo_id=repo.id,
-                            repo_url=repo.html_url,
-                            permissions=repo.permissions,
-                        )
-                        for repo in repos
-                    ]
-                )
-        finally:
-            self.refresh_from_db()
-            self.currently_fetching_repos = False
-            self.save()
-            self.notify_repositories_updated()
-
-    def notify_repositories_updated(self):
-        message = {"type": "USER_REPOS_REFRESH"}
+    def finalize_refresh_repositories(self, error=None):
+        self.refresh_from_db()
+        self.currently_fetching_repos = False
+        self.save()
+        if error is None:
+            message = {"type": "USER_REPOS_REFRESH"}
+        else:
+            message = {
+                "type": "USER_REPOS_ERROR",
+                "payload": {"message": str(error)},
+            }
         async_to_sync(push.push_message_about_instance)(self, message)
 
     def invalidate_salesforce_credentials(self):
@@ -156,40 +143,40 @@ class User(HashIdMixin, AbstractUser):
             return None
 
     @property
-    def github_id(self):
+    def github_id(self) -> Optional[str]:
         try:
             return self.github_account.uid
         except (AttributeError, KeyError, TypeError):
             return None
 
     @property
-    def avatar_url(self):
+    def avatar_url(self) -> Optional[str]:
         try:
             return self.github_account.get_avatar_url()
         except (AttributeError, KeyError, TypeError):
             return None
 
     @property
-    def org_id(self):
+    def org_id(self) -> Optional[str]:
         try:
             return self.salesforce_account.extra_data["organization_id"]
         except (AttributeError, KeyError, TypeError):
             return None
 
     @property
-    def org_name(self):
+    def org_name(self) -> Optional[str]:
         if self.devhub_username or self.uses_global_devhub:
             return None
         return self._get_org_property("Name")
 
     @property
-    def org_type(self):
+    def org_type(self) -> Optional[str]:
         if self.devhub_username or self.uses_global_devhub:
             return None
         return self._get_org_property("OrganizationType")
 
     @property
-    def full_org_type(self):
+    def full_org_type(self) -> Optional[str]:
         org_type = self._get_org_property("OrganizationType")
         is_sandbox = self._get_org_property("IsSandbox")
         has_expiration = self._get_org_property("TrialExpirationDate") is not None
@@ -205,14 +192,14 @@ class User(HashIdMixin, AbstractUser):
             return ORG_TYPES.Scratch
 
     @property
-    def instance_url(self):
+    def instance_url(self) -> Optional[str]:
         try:
             return self.salesforce_account.extra_data["instance_url"]
         except (AttributeError, KeyError):
             return None
 
     @property
-    def uses_global_devhub(self):
+    def uses_global_devhub(self) -> bool:
         return bool(
             settings.DEVHUB_USERNAME
             and not self.devhub_username
@@ -220,7 +207,7 @@ class User(HashIdMixin, AbstractUser):
         )
 
     @property
-    def sf_username(self):
+    def sf_username(self) -> Optional[str]:
         if self.devhub_username:
             return self.devhub_username
 
@@ -233,7 +220,7 @@ class User(HashIdMixin, AbstractUser):
             return None
 
     @property
-    def sf_token(self):
+    def sf_token(self) -> Tuple[Optional[str], Optional[str]]:
         try:
             token = self.salesforce_account.socialtoken_set.first()
             return (
@@ -248,15 +235,15 @@ class User(HashIdMixin, AbstractUser):
         return self.socialaccount_set.get(provider="github").socialtoken_set.get().token
 
     @property
-    def github_account(self):
+    def github_account(self) -> Optional[SocialAccount]:
         return self.socialaccount_set.filter(provider="github").first()
 
     @property
-    def salesforce_account(self):
+    def salesforce_account(self) -> Optional[SocialAccount]:
         return self.socialaccount_set.filter(provider="salesforce").first()
 
     @property
-    def valid_token_for(self):
+    def valid_token_for(self) -> Optional[str]:
         if self.devhub_username or self.uses_global_devhub:
             return None
         if all(self.sf_token) and self.org_id:
@@ -264,7 +251,7 @@ class User(HashIdMixin, AbstractUser):
         return None
 
     @cached_property
-    def is_devhub_enabled(self):
+    def is_devhub_enabled(self) -> bool:
         # We can shortcut and avoid making an HTTP request in some cases:
         if self.devhub_username or self.uses_global_devhub:
             return True
@@ -309,7 +296,6 @@ class Project(
         max_length=100,
         blank=True,
         validators=[validate_unicode_branch],
-        default="master",
     )
     branch_prefix = StringField(blank=True)
     # User data is shaped like this:
@@ -332,6 +318,7 @@ class Project(
     # }
     org_config_names = models.JSONField(default=list, blank=True)
     currently_fetching_org_config_names = models.BooleanField(default=False)
+    currently_fetching_github_users = models.BooleanField(default=False)
     latest_sha = StringField(blank=True)
 
     slug_class = ProjectSlug
@@ -339,6 +326,10 @@ class Project(
 
     def subscribable_by(self, user):  # pragma: nocover
         return True
+
+    def get_absolute_url(self):
+        # See src/js/utils/routes.ts
+        return f"/projects/{self.slug}"
 
     # begin PushMixin configuration:
     push_update_type = "PROJECT_UPDATE"
@@ -374,28 +365,26 @@ class Project(
             )
             self.latest_sha = repo.branch(self.branch_name).latest_sha()
 
-        if not self.github_users:
-            self.queue_populate_github_users(originating_user_id=None)
-
-        if not self.repo_image_url:
-            from .jobs import get_social_image_job
-
-            get_social_image_job.delay(project=self)
-
         super().save(*args, **kwargs)
 
     def finalize_get_social_image(self):
         self.save()
         self.notify_changed(originating_user_id=None)
 
-    def queue_populate_github_users(self, *, originating_user_id):
-        from .jobs import populate_github_users_job
+    def queue_refresh_github_users(self, *, originating_user_id):
+        from .jobs import refresh_github_users_job
 
-        populate_github_users_job.delay(self, originating_user_id=originating_user_id)
-
-    def finalize_populate_github_users(self, *, error=None, originating_user_id):
-        if error is None:
+        if not self.currently_fetching_github_users:
+            self.currently_fetching_github_users = True
             self.save()
+            refresh_github_users_job.delay(
+                self, originating_user_id=originating_user_id
+            )
+
+    def finalize_refresh_github_users(self, *, error=None, originating_user_id):
+        self.currently_fetching_github_users = False
+        self.save()
+        if error is None:
             self.notify_changed(originating_user_id=originating_user_id)
         else:
             self.notify_error(error, originating_user_id=originating_user_id)
@@ -513,6 +502,10 @@ class Epic(
     def subscribable_by(self, user):  # pragma: nocover
         return True
 
+    def get_absolute_url(self):
+        # See src/js/utils/routes.ts
+        return f"/projects/{self.project.slug}/epics/{self.slug}"
+
     # begin SoftDeleteMixin configuration:
     def soft_delete_child_class(self):
         return Task
@@ -598,6 +591,17 @@ class Epic(
         elif self.should_update_in_progress():
             self.status = EPIC_STATUSES["In progress"]
 
+    def notify_created(self, originating_user_id=None):
+        # Notify all users about the new epic
+        group_name = CHANNELS_GROUP_NAME.format(
+            model=self.project._meta.model_name, id=self.project.id
+        )
+        self.notify_changed(
+            type_="EPIC_CREATE",
+            originating_user_id=originating_user_id,
+            group_name=group_name,
+        )
+
     def finalize_pr_closed(self, pr_number, *, originating_user_id):
         self.pr_number = pr_number
         self.pr_is_open = False
@@ -648,8 +652,16 @@ class Task(
     SoftDeleteMixin,
     models.Model,
 ):
+    # Current assumption is that a Task will always be attached to at least one of
+    # Project or Epic, but never both
+    project = models.ForeignKey(
+        Project, on_delete=models.PROTECT, blank=True, null=True, related_name="tasks"
+    )
+    epic = models.ForeignKey(
+        Epic, on_delete=models.PROTECT, blank=True, null=True, related_name="tasks"
+    )
+
     name = StringField()
-    epic = models.ForeignKey(Epic, on_delete=models.PROTECT, related_name="tasks")
     description = MarkdownField(blank=True, property_suffix="_markdown")
     branch_name = models.CharField(
         max_length=100, blank=True, default="", validators=[validate_unicode_branch]
@@ -686,19 +698,65 @@ class Task(
     slug_class = TaskSlug
     tracker = FieldTracker(fields=["name"])
 
+    class Meta:
+        ordering = ("-created_at", "name")
+        constraints = [
+            # Ensure we always have an Epic or Project attached, but not both
+            models.CheckConstraint(
+                check=(Q(project__isnull=False) | Q(epic__isnull=False))
+                & ~Q(project__isnull=False, epic__isnull=False),
+                name="project_xor_epic",
+            )
+        ]
+
     def __str__(self):
         return self.name
 
+    @property
+    def full_name(self) -> str:
+        # Used in emails to fully identify a task by its parents
+        if self.epic:
+            return _('"{}" on {} Epic {}').format(self, self.epic.project, self.epic)
+        return _('"{}" on {}').format(self, self.project)
+
+    @property
+    def root_project(self) -> Project:
+        if self.epic:
+            return self.epic.project
+        return self.project
+
     def save(self, *args, force_epic_save=False, **kwargs):
+        is_new = self.pk is None
         ret = super().save(*args, **kwargs)
-        # To update the epic's status:
-        if force_epic_save or self.epic.should_update_status():
+        save_epic = self.epic and (force_epic_save or self.epic.should_update_status())
+
+        # To update the epic's status
+        if save_epic:
             self.epic.save()
+
+        # Notify epic about new status or new task count
+        if self.epic and (save_epic or is_new):
             self.epic.notify_changed(originating_user_id=None)
+
         return ret
+
+    def delete(self, *args, **kwargs):
+        # Notify epic about new task count
+        if self.epic:
+            self.epic.notify_changed(originating_user_id=None)
+        return super().delete(*args, **kwargs)
 
     def subscribable_by(self, user):  # pragma: nocover
         return True
+
+    def get_absolute_url(self):
+        # See src/js/utils/routes.ts
+        if self.epic:
+            return (
+                f"/projects/{self.epic.project.slug}"
+                + f"/epics/{self.epic.slug}/tasks/{self.slug}"
+            )
+        return f"/projects/{self.project.slug}/tasks/{self.slug}"
 
     # begin SoftDeleteMixin configuration:
     def soft_delete_child_class(self):
@@ -735,10 +793,12 @@ class Task(
             self.save()
 
     def get_repo_id(self):
-        return self.epic.project.get_repo_id()
+        return self.root_project.get_repo_id()
 
     def get_base(self):
-        return self.epic.branch_name
+        if self.epic:
+            return self.epic.branch_name
+        return self.project.branch_name
 
     def get_head(self):
         return self.branch_name
@@ -750,19 +810,12 @@ class Task(
         sa = SocialAccount.objects.filter(provider="github", uid=id_).first()
         user = getattr(sa, "user", None)
         if user:
-            task = self
-            epic = task.epic
-            project = epic.project
-            metecho_link = get_user_facing_url(
-                path=["projects", project.slug, epic.slug, task.slug]
-            )
+            metecho_link = get_user_facing_url(path=self.get_absolute_url())
             subject = _("Metecho Task Submitted for Testing")
             body = render_to_string(
                 "pr_created_for_task.txt",
                 {
-                    "task_name": task.name,
-                    "epic_name": epic.name,
-                    "project_name": project.name,
+                    "task_name": self.full_name,
                     "assigned_user_name": user.username,
                     "metecho_link": metecho_link,
                 },
@@ -772,7 +825,7 @@ class Task(
     # end CreatePrMixin configuration
 
     def has_push_permission(self, user):
-        return self.epic.has_push_permission(user)
+        return self.root_project.has_push_permission(user)
 
     def update_review_valid(self):
         review_valid = bool(
@@ -788,14 +841,25 @@ class Task(
         if head and base:
             repo = gh.get_repo_info(
                 None,
-                repo_owner=self.epic.project.repo_owner,
-                repo_name=self.epic.project.repo_name,
+                repo_owner=self.root_project.repo_owner,
+                repo_name=self.root_project.repo_name,
             )
             base_sha = repo.branch(base).commit.sha
             head_sha = repo.branch(head).commit.sha
             self.has_unmerged_commits = (
                 repo.compare_commits(base_sha, head_sha).ahead_by > 0
             )
+
+    def notify_created(self, originating_user_id=None):
+        # Notify all users about the new task
+        group_name = CHANNELS_GROUP_NAME.format(
+            model=self.root_project._meta.model_name, id=self.root_project.id
+        )
+        self.notify_changed(
+            type_="TASK_CREATE",
+            originating_user_id=originating_user_id,
+            group_name=group_name,
+        )
 
     def finalize_task_update(self, *, originating_user_id):
         self.save()
@@ -806,7 +870,8 @@ class Task(
         self.has_unmerged_commits = False
         self.pr_number = pr_number
         self.pr_is_open = False
-        self.epic.has_unmerged_commits = True
+        if self.epic:
+            self.epic.has_unmerged_commits = True
         # This will save the epic, too:
         self.save(force_epic_save=True)
         self.notify_changed(originating_user_id=originating_user_id)
@@ -896,13 +961,6 @@ class Task(
             if delete_org and deletable_org:
                 org.queue_delete(originating_user_id=originating_user_id)
 
-    class Meta:
-        ordering = ("-created_at", "name")
-        # We enforce this in business logic, not in the database, as we
-        # need to limit this constraint only to active Tasks, and
-        # make the name column case-insensitive:
-        # unique_together = (("name", "epic"),)
-
 
 class ScratchOrg(
     SoftDeleteMixin, PushMixin, HashIdMixin, TimestampsMixin, models.Model
@@ -990,7 +1048,7 @@ class ScratchOrg(
         if self.epic:
             return self.epic.project
         if self.task:
-            return self.task.epic.project
+            return self.task.root_project
         return None
 
     def save(self, *args, **kwargs):
@@ -1007,11 +1065,11 @@ class ScratchOrg(
     def clean(self):
         if len([x for x in [self.project, self.epic, self.task] if x is not None]) != 1:
             raise ValidationError(
-                _("A ScratchOrg must belong to either a project, an epic, or a task.")
+                _("A Scratch Org must belong to either a Project, an Epic, or a Task.")
             )
         if self.org_type != SCRATCH_ORG_TYPES.Playground and not self.task:
             raise ValidationError(
-                {"org_type": _("Dev and Test orgs must belong to a task.")}
+                {"org_type": _("Dev and Test Orgs must belong to a Task.")}
             )
         return super().clean()
 
@@ -1130,6 +1188,7 @@ class ScratchOrg(
         self.org_type = SCRATCH_ORG_TYPES.Dev
         self.task = task
         self.epic = None
+        self.project = None
         self.save()
         self.notify_changed(originating_user_id=originating_user_id)
 

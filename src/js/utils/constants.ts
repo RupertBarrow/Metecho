@@ -21,6 +21,8 @@ export const OBJECT_TYPES = {
 
 export const DEFAULT_ORG_CONFIG_NAME = 'dev';
 
+export const NULL_FILTER_VALUE = 'null';
+
 export type OrgTypes = 'Dev' | 'QA' | 'Playground';
 
 export const ORG_TYPES = {
@@ -82,3 +84,5 @@ export const CONFIRM_ORG_TRACKER = {
 };
 
 export const RETRIEVE_CHANGES = 'retrieve_changes';
+
+export const CREATE_TASK_FROM_ORG = 'create_task_from_org';

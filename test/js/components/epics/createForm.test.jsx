@@ -3,15 +3,15 @@ import fetchMock from 'fetch-mock';
 import React from 'react';
 import { StaticRouter } from 'react-router-dom';
 
-import CreateEpicModal from '~js/components/epics/createForm';
-import { createObject } from '~js/store/actions';
-import { addError } from '~js/store/errors/actions';
-import routes from '~js/utils/routes';
+import CreateEpicModal from '@/js/components/epics/createForm';
+import { createObject } from '@/js/store/actions';
+import { addError } from '@/js/store/errors/actions';
+import routes from '@/js/utils/routes';
 
 import { renderWithRedux, storeWithThunk } from './../../utils';
 
-jest.mock('~js/store/actions');
-jest.mock('~js/store/errors/actions');
+jest.mock('@/js/store/actions');
+jest.mock('@/js/store/errors/actions');
 
 createObject.mockReturnValue(() =>
   Promise.resolve({ type: 'TEST', payload: {} }),
@@ -41,19 +41,13 @@ describe('<CreateEpicModal/>', () => {
       project: defaultProject,
       user: defaultUser,
       isOpen: true,
+      closeCreateModal: jest.fn(),
     };
     const opts = Object.assign({}, defaults, options);
-    const { user, project, isOpen } = opts;
     const context = {};
-    const closeCreateModal = jest.fn();
     const result = renderWithRedux(
       <StaticRouter context={context}>
-        <CreateEpicModal
-          user={user}
-          project={project}
-          closeCreateModal={closeCreateModal}
-          isOpen={isOpen}
-        />
+        <CreateEpicModal {...opts} />
       </StaticRouter>,
       {},
       storeWithThunk,
@@ -225,7 +219,7 @@ describe('<CreateEpicModal/>', () => {
       fakeBranches = ['feature/foo', 'feature/bar'];
       fetchMock.getOnce(url, fakeBranches);
       fireEvent.click(result.getByText('Use existing GitHub branch'));
-      input = result.queryByLabelText('*Select a branch to use for this epic');
+      input = result.queryByLabelText('*Select a branch to use for this Epic');
       fireEvent.click(input);
       await result.findByText('feature/foo');
     });
@@ -285,7 +279,7 @@ describe('<CreateEpicModal/>', () => {
     const url = window.api_urls.project_feature_branches(defaultProject.id);
     fetchMock.getOnce(url, 404);
     fireEvent.click(getByText('Use existing GitHub branch'));
-    const input = queryByLabelText('*Select a branch to use for this epic');
+    const input = queryByLabelText('*Select a branch to use for this Epic');
     fireEvent.click(input);
     await findByText('Loading existing branches…');
     await findByText("There aren't any available branches at this time.", {
@@ -297,5 +291,60 @@ describe('<CreateEpicModal/>', () => {
         exact: false,
       }),
     ).toBeInTheDocument();
+  });
+
+  describe('add and contribute from scratch org', () => {
+    describe('success', () => {
+      test('redirects to new epic page with state', async () => {
+        const orgData = {
+          id: 'org-id',
+          org_config_name: 'qa',
+        };
+        const { findByText, getByText, getByLabelText, context } = setup({
+          playgroundOrgData: orgData,
+        });
+        createObject.mockReturnValueOnce(() =>
+          Promise.resolve({
+            type: 'CREATE_OBJECT_SUCCEEDED',
+            payload: {
+              objectType: 'epic',
+              object: {
+                id: 'epic1',
+                slug: 'name-of-epic',
+                name: 'Name of Epic',
+                project: 'r1',
+              },
+            },
+          }),
+        );
+        const submit = getByText('Create');
+        const nameInput = getByLabelText('*Epic Name');
+        fireEvent.change(nameInput, { target: { value: 'Name of Epic' } });
+        fireEvent.click(submit);
+
+        expect.assertions(3);
+        await findByText('Creating…');
+        await findByText('Create');
+
+        await waitFor(() =>
+          expect(createObject).toHaveBeenCalledWith({
+            objectType: 'epic',
+            data: {
+              name: 'Name of Epic',
+              description: '',
+              project: 'r1',
+              branch_name: '',
+              github_users: [],
+            },
+            hasForm: true,
+            shouldSubscribeToObject: true,
+          }),
+        );
+        expect(context.action).toEqual('PUSH');
+        expect(context.url).toEqual(
+          routes.epic_detail('project-1', 'name-of-epic'),
+        );
+      });
+    });
   });
 });

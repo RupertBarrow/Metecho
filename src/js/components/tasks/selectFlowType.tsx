@@ -6,11 +6,11 @@ import i18n from 'i18next';
 import React, { useCallback, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 
-import { SpinnerWrapper, UseFormProps } from '~js/components/utils';
-import { ThunkDispatch } from '~js/store';
-import { refreshOrgConfigs } from '~js/store/projects/actions';
-import { OrgConfig } from '~js/store/projects/reducer';
-import { DEFAULT_ORG_CONFIG_NAME } from '~js/utils/constants';
+import { SpinnerWrapper, UseFormProps } from '@/js/components/utils';
+import { ThunkDispatch } from '@/js/store';
+import { refreshOrgConfigs } from '@/js/store/projects/actions';
+import { OrgConfig } from '@/js/store/projects/reducer';
+import { DEFAULT_ORG_CONFIG_NAME } from '@/js/utils/constants';
 
 const SelectFlowType = ({
   orgConfigs,
@@ -67,7 +67,7 @@ const SelectFlowType = ({
           content={
             orgConfigHelp ||
             i18n.t(
-              'CumulusCI projects can set up different kinds of org environments. Which one would you like to work on for this task?',
+              'CumulusCI Projects can set up different kinds of Org environments. Which one would you like to work on for this Task?',
             )
           }
           position="overflowBoundaryElement"
@@ -76,14 +76,15 @@ const SelectFlowType = ({
         />
         <Button
           assistiveText={{
-            icon: i18n.t('refresh list of available org types'),
+            icon: i18n.t('refresh list of available Org types'),
           }}
-          title={i18n.t('refresh list of available org types')}
+          title={i18n.t('refresh list of available Org types')}
           variant="icon"
           iconCategory="utility"
           iconName="refresh"
           className="slds-m-left_xx-small"
           onClick={doRefreshOrgConfigs}
+          disabled={isLoading}
         />
       </legend>
       <div className="slds-form-element__control">
@@ -121,7 +122,7 @@ const SelectFlowType = ({
         >
           {isDisabled &&
             i18n.t(
-              'Org Type cannot be changed while a scratch org exists for this task.',
+              'Org Type cannot be changed while an Org exists for this Task.',
             )}
           {errors}
         </div>

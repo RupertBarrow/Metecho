@@ -1,8 +1,8 @@
-import { ThunkResult } from '~js/store';
-import { Epic } from '~js/store/epics/reducer';
-import { Task } from '~js/store/tasks/reducer';
-import apiFetch, { addUrlParams } from '~js/utils/api';
-import { ObjectTypes } from '~js/utils/constants';
+import { ThunkResult } from '@/js/store';
+import { Epic } from '@/js/store/epics/reducer';
+import { Task } from '@/js/store/tasks/reducer';
+import apiFetch, { addUrlParams } from '@/js/utils/api';
+import { ObjectTypes } from '@/js/utils/constants';
 
 interface CreateObjectPayload {
   objectType?: ObjectTypes;
@@ -195,7 +195,9 @@ export const fetchObject =
         url: addUrlParams(baseUrl, { ...filters }),
         dispatch,
       });
-      const object = response?.results?.length ? response.results[0] : null;
+      const object = response?.results?.length
+        ? response.results[0]
+        : response[0] || null;
       const shouldSubscribe =
         (typeof shouldSubscribeToObject === 'boolean' &&
           shouldSubscribeToObject) ||

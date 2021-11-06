@@ -2,12 +2,11 @@ import { action } from '@storybook/addon-actions';
 import { Story } from '@storybook/react/types-6-0';
 import React, { ComponentProps } from 'react';
 
-import TasksTableComponent from '~js/components/tasks/table';
-import { Task } from '~js/store/tasks/reducer';
+import TasksTableComponent from '@/js/components/tasks/table';
+import { Task } from '@/js/store/tasks/reducer';
 
 import { withRedux } from '../../decorators';
 import {
-  sampleEpic1,
   sampleGitHubUser1,
   sampleGitHubUser2,
   sampleGitHubUser3,
@@ -52,9 +51,10 @@ const Template = ({ tasks, ...rest }: StoryProps) => (
 
 export const TasksTable: Story<StoryProps> = Template.bind({});
 TasksTable.args = {
+  tasks: Object.keys(sampleTasks),
+  isFetched: true,
   projectId: sampleProject1.id,
   projectSlug: sampleProject1.slug,
-  epicSlug: sampleEpic1.slug,
   epicUsers: [sampleGitHubUser1],
   githubUsers: [sampleGitHubUser1, sampleGitHubUser2, sampleGitHubUser3],
   canAssign: true,
@@ -63,7 +63,6 @@ TasksTable.args = {
 };
 TasksTable.argTypes = {
   tasks: {
-    defaultValue: Object.keys(sampleTasks),
     options: Object.keys(sampleTasks),
     control: {
       type: 'multi-select',

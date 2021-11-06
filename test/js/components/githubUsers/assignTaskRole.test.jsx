@@ -1,12 +1,12 @@
 import { fireEvent } from '@testing-library/react';
 import React from 'react';
 
-import AssignTaskRoleModal from '~js/components/githubUsers/assignTaskRole';
-import { refreshGitHubUsers } from '~js/store/projects/actions';
+import AssignTaskRoleModal from '@/js/components/githubUsers/assignTaskRole';
+import { refreshGitHubUsers } from '@/js/store/projects/actions';
 
 import { renderWithRedux, storeWithThunk } from '../../utils';
 
-jest.mock('~js/store/projects/actions');
+jest.mock('@/js/store/projects/actions');
 
 refreshGitHubUsers.mockReturnValue(() => Promise.resolve({ type: 'TEST' }));
 
@@ -62,6 +62,13 @@ describe('AssignTaskRole', () => {
       defaultState,
       storeWithThunk,
     ),
+  });
+
+  test('renders without epic collaborators', () => {
+    const { getByText, queryByText } = setup({ epicUsers: null });
+
+    expect(queryByText('Epic Collaborators')).toBeNull();
+    expect(getByText('GitHub Collaborators')).toBeVisible();
   });
 
   test('responds to epic user click', () => {

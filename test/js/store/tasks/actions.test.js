@@ -1,6 +1,14 @@
-import * as actions from '~js/store/tasks/actions';
+import * as actions from '@/js/store/tasks/actions';
 
 import { storeWithThunk } from './../../utils';
+
+describe('createTask', () => {
+  test('returns TaskCreated', () => {
+    const expected = { type: 'TASK_CREATE', payload: {} };
+
+    expect(actions.createTask({})).toEqual(expected);
+  });
+});
 
 describe('updateTask', () => {
   test('returns TaskUpdated', () => {
@@ -29,7 +37,7 @@ describe('createTaskPR', () => {
 
     expect(allActions[0].type).toEqual('TOAST_ADDED');
     expect(allActions[0].payload.heading).toMatch(
-      'Successfully submitted task for testing: “My Task”.',
+      'Successfully submitted Task for testing: “My Task.”',
     );
     expect(allActions[0].payload.linkText).toEqual('View pull request.');
     expect(allActions[0].payload.linkUrl).toEqual('my-pr-url');
@@ -75,7 +83,7 @@ describe('createTaskPR', () => {
 
     expect(allActions[0].type).toEqual('TOAST_ADDED');
     expect(allActions[0].payload.heading).toMatch(
-      'Successfully submitted task for testing: “My Task”.',
+      'Successfully submitted Task for testing: “My Task.”',
     );
     expect(allActions[0].payload.linkText).toBeUndefined();
     expect(allActions[0].payload.linkUrl).toBeUndefined();
@@ -105,7 +113,7 @@ describe('createTaskPRFailed', () => {
 
     expect(allActions[0].type).toEqual('TOAST_ADDED');
     expect(allActions[0].payload.heading).toMatch(
-      'Uh oh. There was an error submitting task for testing: “My Task”.',
+      'Uh oh. There was an error submitting Task for testing: “My Task.”',
     );
     expect(allActions[0].payload.details).toEqual('error msg');
     expect(allActions[0].payload.variant).toEqual('error');
@@ -154,7 +162,7 @@ describe('submitReview', () => {
 
     expect(allActions[0].type).toEqual('TOAST_ADDED');
     expect(allActions[0].payload.heading).toMatch(
-      'Successfully submitted review for task: “My Task”.',
+      'Successfully submitted review for Task: “My Task.”',
     );
     expect(allActions[0].payload.linkText).toEqual('View pull request.');
     expect(allActions[0].payload.linkUrl).toEqual('my-pr-url');
@@ -200,7 +208,7 @@ describe('submitReview', () => {
 
     expect(allActions[0].type).toEqual('TOAST_ADDED');
     expect(allActions[0].payload.heading).toMatch(
-      'Successfully submitted review for task: “My Task”.',
+      'Successfully submitted review for Task: “My Task.”',
     );
     expect(allActions[0].payload.linkText).toBeUndefined();
     expect(allActions[0].payload.linkUrl).toBeUndefined();
@@ -230,7 +238,7 @@ describe('submitReviewFailed', () => {
 
     expect(allActions[0].type).toEqual('TOAST_ADDED');
     expect(allActions[0].payload.heading).toMatch(
-      'Uh oh. There was an error submitting review for task: “My Task”.',
+      'Uh oh. There was an error submitting review for Task: “My Task.”',
     );
     expect(allActions[0].payload.details).toEqual('error msg');
     expect(allActions[0].payload.variant).toEqual('error');

@@ -3,42 +3,41 @@ import Input from '@salesforce/design-system-react/components/input';
 import Modal from '@salesforce/design-system-react/components/modal';
 import Textarea from '@salesforce/design-system-react/components/textarea';
 import i18n from 'i18next';
-import { isString } from 'lodash';
 import React, { useRef, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { AnyAction } from 'redux';
 
-import SelectFlowType from '~js/components/tasks/selectFlowType';
+import SelectFlowType from '@/js/components/tasks/selectFlowType';
 import {
   LabelWithSpinner,
+  OrgData,
   useForm,
   useFormDefaults,
   useIsMounted,
   useTransientMessage,
-} from '~js/components/utils';
-import { Epic } from '~js/store/epics/reducer';
-import { Org } from '~js/store/orgs/reducer';
-import { Project } from '~js/store/projects/reducer';
+} from '@/js/components/utils';
+import { Epic } from '@/js/store/epics/reducer';
+import { Project } from '@/js/store/projects/reducer';
 import {
   DEFAULT_ORG_CONFIG_NAME,
   OBJECT_TYPES,
   RETRIEVE_CHANGES,
-} from '~js/utils/constants';
-import routes from '~js/utils/routes';
+} from '@/js/utils/constants';
+import routes from '@/js/utils/routes';
 
 interface Props {
   project: Project;
-  epic: Epic;
-  isOpenOrOrgId: boolean | string | null;
-  playgroundOrg?: Org;
+  epic?: Epic | null;
+  isOpen: boolean;
+  playgroundOrgData?: OrgData | null;
   closeCreateModal: () => void;
 }
 
 const CreateTaskModal = ({
   project,
   epic,
-  isOpenOrOrgId,
-  playgroundOrg,
+  isOpen,
+  playgroundOrgData,
   closeCreateModal,
 }: Props) => {
   const history = useHistory();
@@ -49,10 +48,13 @@ const CreateTaskModal = ({
   const [isSavingBatch, setIsSavingBatch] = useState(false);
 
   const submitButton = useRef<HTMLButtonElement | null>(null);
-  const isContributingFromOrg = isString(isOpenOrOrgId);
-  const useExistingOrgConfig = Boolean(isContributingFromOrg && playgroundOrg);
+  const isContributingFromOrg = Boolean(playgroundOrgData);
+  const useExistingOrgConfig = Boolean(
+    isContributingFromOrg && playgroundOrgData?.org_config_name,
+  );
   const defaultOrgConfig = useExistingOrgConfig
-    ? playgroundOrg?.org_config_name || DEFAULT_ORG_CONFIG_NAME
+    ? /* istanbul ignore next */ playgroundOrgData?.org_config_name ||
+      DEFAULT_ORG_CONFIG_NAME
     : DEFAULT_ORG_CONFIG_NAME;
 
   /* istanbul ignore next */
@@ -64,11 +66,12 @@ const CreateTaskModal = ({
   };
 
   const additionalData: { [key: string]: any } = {
-    epic: epic.id,
+    epic: epic?.id,
+    project: epic ? undefined : project.id,
   };
 
   if (isContributingFromOrg) {
-    additionalData.dev_org = isOpenOrOrgId as string;
+    additionalData.dev_org = playgroundOrgData?.id as string;
   }
 
   const {
@@ -107,21 +110,24 @@ const CreateTaskModal = ({
     if (isMounted.current) {
       setIsSaving(false);
       closeModal();
-      if (isContributingFromOrg) {
-        // Redirect to newly created task, and trigger retrieve-changes from org
-        const {
-          type,
-          payload: { object, objectType },
-        } = action;
-        /* istanbul ignore else */
-        if (
-          type === 'CREATE_OBJECT_SUCCEEDED' &&
-          objectType === OBJECT_TYPES.TASK &&
-          object?.slug
-        ) {
-          const url = routes.task_detail(project.slug, epic.slug, object.slug);
-          history.push(url, { [RETRIEVE_CHANGES]: true });
-        }
+      const {
+        type,
+        payload: { object, objectType },
+      } = action;
+      if (
+        type === 'CREATE_OBJECT_SUCCEEDED' &&
+        objectType === OBJECT_TYPES.TASK &&
+        object?.slug
+      ) {
+        // Redirect to newly created task
+        const url = epic
+          ? routes.epic_task_detail(project.slug, epic.slug, object.slug)
+          : routes.project_task_detail(project.slug, object.slug);
+        // Trigger retrieve-changes from org
+        const state = isContributingFromOrg
+          ? { [RETRIEVE_CHANGES]: true }
+          : undefined;
+        history.push(url, state);
       }
     }
   };
@@ -152,14 +158,20 @@ const CreateTaskModal = ({
 
   let heading;
   if (isContributingFromOrg) {
-    heading = i18n.t('Add a Task to Contribute Work from Scratch Org');
+    heading = i18n.t('Create a Task to Contribute Work from Scratch Org');
+  } else if (epic) {
+    heading = i18n.t('Create a Task for {{epic_name}}', {
+      epic_name: epic.name,
+    });
   } else {
-    heading = i18n.t('Add a Task for {{epic_name}}', { epic_name: epic.name });
+    heading = i18n.t('Create a Task for {{project_name}}', {
+      project_name: project.name,
+    });
   }
 
   return (
     <Modal
-      isOpen={Boolean(isOpenOrOrgId)}
+      isOpen={isOpen}
       size="small"
       disableClose={isSaving || isSavingBatch}
       heading={heading}
@@ -175,7 +187,7 @@ const CreateTaskModal = ({
               slds-p-top_xx-small
               metecho-transition-out"
           >
-            {i18n.t('A task was successfully added.')}
+            {i18n.t('A Task was successfully created.')}
           </span>
         ),
         <Button
@@ -189,9 +201,9 @@ const CreateTaskModal = ({
             key="create-new"
             label={
               isSavingBatch ? (
-                <LabelWithSpinner label={i18n.t('Adding…')} />
+                <LabelWithSpinner label={i18n.t('Creating…')} />
               ) : (
-                i18n.t('Add & New')
+                i18n.t('Create & New')
               )
             }
             onClick={batchSubmitClicked}
@@ -203,9 +215,9 @@ const CreateTaskModal = ({
           type="submit"
           label={
             isSaving ? (
-              <LabelWithSpinner label={i18n.t('Adding…')} variant="inverse" />
+              <LabelWithSpinner label={i18n.t('Creating…')} variant="inverse" />
             ) : (
-              i18n.t('Add')
+              i18n.t('Create')
             )
           }
           variant="brand"
@@ -215,6 +227,13 @@ const CreateTaskModal = ({
       ]}
     >
       <form onSubmit={doSubmit} className="slds-form slds-p-around_large">
+        {!epic && !isContributingFromOrg && (
+          <p className="slds-align_absolute-center slds-m-bottom_small">
+            {i18n.t(
+              'You are creating a Task for this Project. To group multiple Tasks together, create an Epic.',
+            )}
+          </p>
+        )}
         <Input
           id="task-name"
           label={i18n.t('Task Name')}

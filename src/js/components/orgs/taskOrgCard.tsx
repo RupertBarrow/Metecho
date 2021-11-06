@@ -5,25 +5,25 @@ import React, { ReactNode, useCallback, useState } from 'react';
 import { Trans } from 'react-i18next';
 import { useSelector } from 'react-redux';
 
-import AssignTaskRoleModal from '~js/components/githubUsers/assignTaskRole';
-import { UserCard } from '~js/components/githubUsers/cards';
-import Footer from '~js/components/orgs/cards/footer';
-import OrgActions from '~js/components/orgs/cards/orgActions';
-import OrgIcon from '~js/components/orgs/cards/orgIcon';
-import OrgInfo from '~js/components/orgs/cards/orgInfo';
-import OrgSpinner from '~js/components/orgs/cards/orgSpinner';
-import RefreshOrgModal from '~js/components/orgs/cards/refresh';
-import UserActions from '~js/components/orgs/cards/userActions';
-import { AssignedUserTracker } from '~js/components/orgs/taskOrgCards';
-import TourPopover from '~js/components/tour/popover';
-import { AppState } from '~js/store';
-import { Org } from '~js/store/orgs/reducer';
-import { selectProjectCollaborator } from '~js/store/projects/selectors';
-import { Task } from '~js/store/tasks/reducer';
-import { GitHubUser, User } from '~js/store/user/reducer';
-import { ORG_TYPES, OrgTypes } from '~js/utils/constants';
-import { getTaskCommits } from '~js/utils/helpers';
-import { logError } from '~js/utils/logging';
+import AssignTaskRoleModal from '@/js/components/githubUsers/assignTaskRole';
+import { UserCard } from '@/js/components/githubUsers/cards';
+import Footer from '@/js/components/orgs/cards/footer';
+import OrgActions from '@/js/components/orgs/cards/orgActions';
+import OrgIcon from '@/js/components/orgs/cards/orgIcon';
+import OrgInfo from '@/js/components/orgs/cards/orgInfo';
+import OrgSpinner from '@/js/components/orgs/cards/orgSpinner';
+import RefreshOrgModal from '@/js/components/orgs/cards/refresh';
+import UserActions from '@/js/components/orgs/cards/userActions';
+import { AssignedUserTracker } from '@/js/components/orgs/taskOrgCards';
+import TourPopover from '@/js/components/tour/popover';
+import { AppState } from '@/js/store';
+import { Org } from '@/js/store/orgs/reducer';
+import { selectProjectCollaborator } from '@/js/store/projects/selectors';
+import { Task } from '@/js/store/tasks/reducer';
+import { GitHubUser, User } from '@/js/store/user/reducer';
+import { ORG_TYPES, OrgTypes } from '@/js/utils/constants';
+import { getTaskCommits } from '@/js/utils/helpers';
+import { logError } from '@/js/utils/logging';
 
 interface TaskOrgCardProps {
   org: Org | null;
@@ -35,7 +35,6 @@ interface TaskOrgCardProps {
   epicUsers: GitHubUser[];
   githubUsers: GitHubUser[];
   epicCreatingBranch: boolean;
-  epicUrl: string;
   repoUrl: string;
   isCreatingOrg: boolean;
   isDeletingOrg: boolean;
@@ -97,6 +96,7 @@ const TaskOrgCard = ({
       orgHeading = i18n.t('Test Org');
       popover = (
         <TourPopover
+          id="tour-task-test-org"
           align="top left"
           heading={i18n.t('Tester & Test Org')}
           body={
@@ -120,6 +120,7 @@ const TaskOrgCard = ({
       orgHeading = i18n.t('Dev Org');
       popover = (
         <TourPopover
+          id="tour-task-dev-org"
           align="top left"
           heading={i18n.t('Developer & Dev Org')}
           body={
@@ -151,7 +152,7 @@ const TaskOrgCard = ({
   // If (somehow) there's an org owned by someone else, do not show org.
   if (ownedByWrongUser) {
     logError(
-      'A scratch org exists for this task, but is not owned by the assigned user.',
+      'An Org exists for this Task, but is not owned by the assigned user.',
       {
         org,
         assignedUser,

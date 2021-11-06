@@ -4,8 +4,8 @@ import i18n from 'i18next';
 import React from 'react';
 import { Trans } from 'react-i18next';
 
-import { UserCard } from '~js/components/githubUsers/cards';
-import { GitHubUser } from '~js/store/user/reducer';
+import { UserCard } from '@/js/components/githubUsers/cards';
+import { GitHubUser } from '@/js/store/user/reducer';
 
 const ConfirmRemoveUserModal = ({
   confirmRemoveUsers,
@@ -57,10 +57,10 @@ const ConfirmRemoveUserModal = ({
     >
       <div className="slds-p-top_small">
         <Trans i18nKey="confirmRemoveCollaboratorsMessage" count={count}>
-          The following user is being removed from this epic, but is already
-          assigned to at least one task. Removing this user will not remove them
-          from any assigned tasks. Are you sure you want to remove this user
-          from the epic?
+          The following user is being removed from this Epic, but is already
+          assigned to at least one Task. Removing this user will not remove them
+          from any assigned Tasks. Are you sure you want to remove this user
+          from the Epic?
         </Trans>
         <ul>
           {(confirmRemoveUsers as GitHubUser[]).map((user) => (

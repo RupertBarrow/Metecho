@@ -6,15 +6,15 @@ import { Trans } from 'react-i18next';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 
-import Alerts from '~js/components/alerts';
-import Errors from '~js/components/apiErrors';
-import Toasts from '~js/components/toasts';
-import TourDropdown from '~js/components/tour/dropdown';
-import TourPopover from '~js/components/tour/popover';
-import UserInfo from '~js/components/user/info';
-import { ExternalLink } from '~js/components/utils';
-import { selectUserState } from '~js/store/user/selectors';
-import routes from '~js/utils/routes';
+import Alerts from '@/js/components/alerts';
+import Errors from '@/js/components/apiErrors';
+import Toasts from '@/js/components/toasts';
+import TourDropdown from '@/js/components/tour/dropdown';
+import TourPopover from '@/js/components/tour/popover';
+import UserInfo from '@/js/components/user/info';
+import { ExternalLink } from '@/js/components/utils';
+import { selectUserState } from '@/js/store/user/selectors';
+import routes from '@/js/utils/routes';
 
 const Header = () => {
   const user = useSelector(selectUserState);
@@ -27,6 +27,7 @@ const Header = () => {
       <div className="slds-is-relative">
         <UserInfo />
         <TourPopover
+          id="tour-user"
           align="bottom right"
           heading={i18n.t('Account & connection info')}
           body={
@@ -51,14 +52,19 @@ const Header = () => {
       <Toasts />
       <div className="slds-is-relative logo-popover">
         <TourPopover
+          id="tour-metecho-name"
           align="bottom left"
           heading={i18n.t('What’s in a name?')}
           body={
             <Trans i18nKey="tourMetechoName">
               Metecho makes it easier for you to view, test, and contribute to
-              Salesforce Projects without learning GitHub. <b>Pronunciation</b>:
-              “Met” rhymes with “Bet.” “Echo” as in the reflection of sound
-              waves. <b>Definition</b>: “Share or participate in.”
+              Salesforce Projects without learning GitHub.
+              <br />
+              <br />
+              <b>Pronunciation</b>: “Met” rhymes with “bet.” “Echo” as in the
+              reflection of sound waves.
+              <br />
+              <b>Definition</b>: To share or participate in.
             </Trans>
           }
         />
@@ -69,7 +75,9 @@ const Header = () => {
           title={
             <Link
               to={routes.home()}
-              className="slds-text-heading_large slds-text-link_reset"
+              className="slds-text-heading_large
+                slds-text-link_reset
+                walkthrough-metecho-name"
             >
               <span data-logo-bit="start">met</span>
               <span data-logo-bit="end">échō</span>

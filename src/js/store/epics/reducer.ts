@@ -1,7 +1,7 @@
-import { ObjectsAction, PaginatedObjectResponse } from '~js/store/actions';
-import { EpicAction } from '~js/store/epics/actions';
-import { LogoutAction, RefetchDataAction } from '~js/store/user/actions';
-import { EpicStatuses, OBJECT_TYPES, ObjectTypes } from '~js/utils/constants';
+import { ObjectsAction, PaginatedObjectResponse } from '@/js/store/actions';
+import { EpicAction } from '@/js/store/epics/actions';
+import { LogoutAction, RefetchDataAction } from '@/js/store/user/actions';
+import { EpicStatuses, OBJECT_TYPES, ObjectTypes } from '@/js/utils/constants';
 
 export interface Epic {
   id: string;
@@ -11,6 +11,7 @@ export interface Epic {
   old_slugs: string[];
   description: string;
   description_rendered: string;
+  task_count: number;
   branch_name: string;
   branch_url: string | null;
   branch_diff_url: string | null;
@@ -141,12 +142,11 @@ const reducer = (
       }
       return epics;
     }
+    case 'EPIC_CREATE':
     case 'EPIC_UPDATE':
     case 'UPDATE_OBJECT_SUCCEEDED': {
       let maybeEpic;
-      if (action.type === 'EPIC_UPDATE') {
-        maybeEpic = action.payload;
-      } else {
+      if (action.type === 'UPDATE_OBJECT_SUCCEEDED') {
         const {
           object,
           objectType,
@@ -154,6 +154,8 @@ const reducer = (
         if (objectType === OBJECT_TYPES.EPIC && object) {
           maybeEpic = object;
         }
+      } else {
+        maybeEpic = action.payload as Epic;
       }
       /* istanbul ignore if */
       if (!maybeEpic) {
@@ -165,6 +167,10 @@ const reducer = (
       };
       const existingEpic = projectEpics.epics.find((p) => p.id === epic.id);
       if (existingEpic) {
+        // Don't update existing epic on EPIC_CREATE event
+        if (action.type === 'EPIC_CREATE') {
+          return epics;
+        }
         return {
           ...epics,
           [epic.project]: {
