@@ -4,8 +4,8 @@ import i18n from 'i18next';
 import React from 'react';
 import { Trans } from 'react-i18next';
 
-import { ExternalLink } from '~js/components/utils';
-import { getOrgBehindLatestMsg } from '~js/utils/helpers';
+import { ExternalLink } from '@/js/components/utils';
+import { getOrgBehindLatestMsg } from '@/js/utils/helpers';
 
 const RefreshOrgModal = ({
   orgUrl,
@@ -51,7 +51,7 @@ const RefreshOrgModal = ({
         />
         <hr className="slds-m-vertical_large" />
         <Trans i18nKey="viewOutdatedOrg">
-          You may proceed with the outdated org, but be aware that you will not
+          You may proceed with the outdated Org, but be aware that you will not
           be testing the latest changes.
         </Trans>
         <ExternalLink

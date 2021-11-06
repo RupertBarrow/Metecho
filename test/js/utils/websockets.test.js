@@ -1,11 +1,12 @@
 import Sockette from 'sockette';
 
-import { removeObject } from '~js/store/actions';
+import { removeObject } from '@/js/store/actions';
 import {
+  createEpic,
   createEpicPR,
   createEpicPRFailed,
   updateEpic,
-} from '~js/store/epics/actions';
+} from '@/js/store/epics/actions';
 import {
   commitFailed,
   commitSucceeded,
@@ -22,27 +23,29 @@ import {
   refreshError,
   updateFailed,
   updateOrg,
-} from '~js/store/orgs/actions';
+} from '@/js/store/orgs/actions';
 import {
   projectError,
   projectsRefreshed,
+  projectsRefreshError,
   updateProject,
-} from '~js/store/projects/actions';
-import { connectSocket, disconnectSocket } from '~js/store/socket/actions';
+} from '@/js/store/projects/actions';
+import { connectSocket, disconnectSocket } from '@/js/store/socket/actions';
 import {
+  createTask,
   createTaskPR,
   createTaskPRFailed,
   submitReview,
   submitReviewFailed,
   updateTask,
-} from '~js/store/tasks/actions';
-import * as sockets from '~js/utils/websockets';
+} from '@/js/store/tasks/actions';
+import * as sockets from '@/js/utils/websockets';
 
-jest.mock('~js/store/actions');
-jest.mock('~js/store/orgs/actions');
-jest.mock('~js/store/epics/actions');
-jest.mock('~js/store/projects/actions');
-jest.mock('~js/store/tasks/actions');
+jest.mock('@/js/store/actions');
+jest.mock('@/js/store/orgs/actions');
+jest.mock('@/js/store/epics/actions');
+jest.mock('@/js/store/projects/actions');
+jest.mock('@/js/store/tasks/actions');
 
 const actions = {
   commitFailed,
@@ -65,10 +68,13 @@ const actions = {
   removeObject,
   projectError,
   projectsRefreshed,
+  projectsRefreshError,
   submitReview,
   submitReviewFailed,
   updateFailed,
   updateOrg,
+  createEpic,
+  createTask,
   updateEpic,
   updateProject,
   updateTask,
@@ -106,9 +112,11 @@ describe('getAction', () => {
   test.each([
     ['PROJECT_UPDATE', 'updateProject', true],
     ['PROJECT_UPDATE_ERROR', 'projectError', false],
+    ['EPIC_CREATE', 'createEpic', true],
     ['EPIC_UPDATE', 'updateEpic', true],
     ['EPIC_CREATE_PR', 'createEpicPR', false],
     ['EPIC_CREATE_PR_FAILED', 'createEpicPRFailed', false],
+    ['TASK_CREATE', 'createTask', true],
     ['TASK_UPDATE', 'updateTask', true],
     ['TASK_CREATE_PR', 'createTaskPR', false],
     ['TASK_CREATE_PR_FAILED', 'createTaskPRFailed', false],
@@ -146,6 +154,15 @@ describe('getAction', () => {
       sockets.getAction(event);
 
       expect(projectsRefreshed).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('USER_REPOS_ERROR', () => {
+    test('calls projectsRefreshError', () => {
+      const event = { type: 'USER_REPOS_ERROR', payload: { message: 'foo' } };
+      sockets.getAction(event);
+
+      expect(projectsRefreshError).toHaveBeenCalledWith('foo');
     });
   });
 
@@ -271,7 +288,7 @@ describe('createSocket', () => {
 
     describe('onclose', () => {
       beforeEach(() => {
-        jest.useFakeTimers('legacy');
+        jest.useFakeTimers();
       });
 
       afterEach(() => {
@@ -371,7 +388,7 @@ describe('createSocket', () => {
     let socket;
 
     beforeEach(() => {
-      jest.useFakeTimers('legacy');
+      jest.useFakeTimers();
       socket = sockets.createSocket(opts);
     });
 

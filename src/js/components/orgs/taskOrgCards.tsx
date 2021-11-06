@@ -2,21 +2,21 @@ import i18n from 'i18next';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import TaskOrgCard from '~js/components/orgs/taskOrgCard';
-import ConfirmDeleteModal from '~js/components/tasks/confirmDeleteModal';
-import ConfirmRemoveUserModal from '~js/components/tasks/confirmRemoveUserModal';
-import ConnectModal from '~js/components/user/connect';
-import { ConnectionInfoModal } from '~js/components/user/info';
-import { useIsMounted } from '~js/components/utils';
-import { ThunkDispatch } from '~js/store';
-import { deleteObject, updateObject } from '~js/store/actions';
-import { refetchOrg } from '~js/store/orgs/actions';
-import { Org, OrgsByParent } from '~js/store/orgs/reducer';
-import { Task } from '~js/store/tasks/reducer';
-import { GitHubUser, User } from '~js/store/user/reducer';
-import { selectUserState } from '~js/store/user/selectors';
-import apiFetch from '~js/utils/api';
-import { OBJECT_TYPES, ORG_TYPES, OrgTypes } from '~js/utils/constants';
+import TaskOrgCard from '@/js/components/orgs/taskOrgCard';
+import ConfirmDeleteModal from '@/js/components/tasks/confirmDeleteModal';
+import ConfirmRemoveUserModal from '@/js/components/tasks/confirmRemoveUserModal';
+import ConnectModal from '@/js/components/user/connect';
+import { ConnectionInfoModal } from '@/js/components/user/info';
+import { useIsMounted } from '@/js/components/utils';
+import { ThunkDispatch } from '@/js/store';
+import { deleteObject, updateObject } from '@/js/store/actions';
+import { refetchOrg } from '@/js/store/orgs/actions';
+import { Org, OrgsByParent } from '@/js/store/orgs/reducer';
+import { Task } from '@/js/store/tasks/reducer';
+import { GitHubUser, User } from '@/js/store/user/reducer';
+import { selectUserState } from '@/js/store/user/selectors';
+import apiFetch from '@/js/utils/api';
+import { OBJECT_TYPES, ORG_TYPES, OrgTypes } from '@/js/utils/constants';
 
 export interface AssignedUserTracker {
   type: OrgTypes;
@@ -42,7 +42,6 @@ const TaskOrgCards = ({
   epicUsers,
   githubUsers,
   epicCreatingBranch,
-  epicUrl,
   repoUrl,
   assignUserModalOpen,
   isCreatingOrg,
@@ -64,7 +63,6 @@ const TaskOrgCards = ({
   epicUsers: GitHubUser[];
   githubUsers: GitHubUser[];
   epicCreatingBranch: boolean;
-  epicUrl: string;
   repoUrl: string;
   assignUserModalOpen: OrgTypes | null;
   isCreatingOrg: OrgTypeTracker;
@@ -197,6 +195,7 @@ const TaskOrgCards = ({
     shouldAlertAssignee,
   }: AssignedUserTracker) => {
     const org = orgs[type];
+    /* istanbul ignore else */
     if (org && type === ORG_TYPES.DEV) {
       let canReassign = false;
       if (assignee) {
@@ -208,7 +207,7 @@ const TaskOrgCards = ({
         checkForOrgChanges(org as Org);
         setIsWaitingToRemoveUser({ type, assignee, shouldAlertAssignee });
       }
-    } /* istanbul ignore next */ else if (type !== ORG_TYPES.PLAYGROUND) {
+    } else if (type !== ORG_TYPES.PLAYGROUND) {
       assignUser({ type, assignee, shouldAlertAssignee });
     }
   };
@@ -274,7 +273,6 @@ const TaskOrgCards = ({
           epicUsers={epicUsers}
           githubUsers={githubUsers}
           epicCreatingBranch={epicCreatingBranch}
-          epicUrl={epicUrl}
           repoUrl={repoUrl}
           isCreatingOrg={isCreatingOrg[ORG_TYPES.DEV]}
           isDeletingOrg={isDeletingOrg[ORG_TYPES.DEV]}
@@ -299,7 +297,6 @@ const TaskOrgCards = ({
           epicUsers={epicUsers}
           githubUsers={githubUsers}
           epicCreatingBranch={epicCreatingBranch}
-          epicUrl={epicUrl}
           repoUrl={repoUrl}
           isCreatingOrg={isCreatingOrg[ORG_TYPES.QA]}
           isDeletingOrg={isDeletingOrg[ORG_TYPES.QA]}

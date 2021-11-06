@@ -4,11 +4,11 @@ import i18n from 'i18next';
 import React from 'react';
 import { Trans } from 'react-i18next';
 
-import TourPopover from '~js/components/tour/popover';
-import { LabelWithSpinner } from '~js/components/utils';
-import { Org } from '~js/store/orgs/reducer';
-import { Task } from '~js/store/tasks/reducer';
-import { ORG_TYPES, OrgTypes, REVIEW_STATUSES } from '~js/utils/constants';
+import TourPopover from '@/js/components/tour/popover';
+import { LabelWithSpinner } from '@/js/components/utils';
+import { Org } from '@/js/store/orgs/reducer';
+import { Task } from '@/js/store/tasks/reducer';
+import { ORG_TYPES, OrgTypes, REVIEW_STATUSES } from '@/js/utils/constants';
 
 const OrgActions = ({
   org,
@@ -118,7 +118,7 @@ const OrgActions = ({
       <Button
         label={i18n.t('Contribute Work')}
         variant="outline-brand"
-        className="slds-m-right_x-small"
+        className="slds-m-right_x-small tour-scratch-org-contribute"
         onClick={openContributeModal}
       />
     );
@@ -170,11 +170,12 @@ const OrgActions = ({
         isActive = hasReviewRejected || !task.has_unmerged_commits;
         popover = (
           <TourPopover
+            id="tour-task-create-dev-org"
             align="top"
             heading={i18n.t('Create a Dev Org')}
             body={
               <Trans i18nKey="tourTaskCreateDevOrg">
-                A Dev Org is a temporary Salesforce org where you can make
+                A Dev Org is a temporary Salesforce Org where you can make
                 changes that you would like to contribute to the Project. To
                 create an Org, make sure you are connected to a Salesforce
                 account with Dev Hub enabled. Use the drop down menu to delete
@@ -189,11 +190,12 @@ const OrgActions = ({
         isActive = needsReview;
         popover = (
           <TourPopover
+            id="tour-task-create-test-org"
             align="top"
             heading={i18n.t('Create a Test Org')}
             body={
               <Trans i18nKey="tourTaskCreateTestOrg">
-                A Test Org is a temporary Salesforce org where you can view the
+                A Test Org is a temporary Salesforce Org where you can view the
                 changes the Developer retrieved. To create an Org, make sure you
                 are connected to a Salesforce account with Dev Hub enabled. Read
                 the Developer’s Commit History to see what changes they made.
@@ -211,6 +213,7 @@ const OrgActions = ({
           <span className="slds-is-relative inline-container">
             {submitReviewBtn}
             <TourPopover
+              id="tour-task-submit-review"
               align="top"
               heading={i18n.t('Submit a review')}
               body={

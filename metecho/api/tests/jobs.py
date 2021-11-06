@@ -23,9 +23,9 @@ from ..jobs import (
     delete_scratch_org,
     get_social_image,
     get_unsaved_changes,
-    populate_github_users,
     refresh_commits,
     refresh_github_repositories_for_user,
+    refresh_github_users,
     refresh_scratch_org,
     submit_review,
     user_reassign,
@@ -40,13 +40,31 @@ Commit = namedtuple(
 )
 PATCH_ROOT = "metecho.api.jobs"
 
+fixture = pytest.lazy_fixture
+
 
 @pytest.mark.django_db
 class TestCreateBranchesOnGitHub:
-    def test_create_branches_on_github(self, user_factory, task_factory):
+    def test_require_epic_or_task(self, user_factory):
+        with pytest.raises(ValueError):
+            _create_branches_on_github(
+                user=user_factory(),
+                repo_id=123,
+                epic=None,
+                task=None,
+                originating_user_id="123abc",
+            )
+
+    @pytest.mark.parametrize(
+        "_task_factory",
+        (
+            pytest.param(fixture("task_factory"), id="With Epic"),
+            pytest.param(fixture("task_with_project_factory"), id="With Project"),
+        ),
+    )
+    def test_create_branches_on_github(self, user_factory, _task_factory):
         user = user_factory()
-        task = task_factory()
-        epic = task.epic
+        task = _task_factory()
 
         with ExitStack() as stack:
             stack.enter_context(patch(f"{PATCH_ROOT}.local_github_checkout"))
@@ -63,7 +81,7 @@ class TestCreateBranchesOnGitHub:
             _create_branches_on_github(
                 user=user,
                 repo_id=123,
-                epic=epic,
+                epic=task.epic,
                 task=task,
                 originating_user_id="123abc",
             )
@@ -243,8 +261,17 @@ class TestAlertUserAboutExpiringOrg:
             assert alert_user_about_expiring_org(org=scratch_org, days=3) is None
             assert not send_mail.called
 
-    def test_good(self, scratch_org_factory):
-        scratch_org = scratch_org_factory(unsaved_changes={"something": 1})
+    @pytest.mark.parametrize(
+        "_task_factory",
+        (
+            pytest.param(fixture("task_factory"), id="Task with Epic"),
+            pytest.param(fixture("task_with_project_factory"), id="Task with Project"),
+        ),
+    )
+    def test_good(self, scratch_org_factory, _task_factory):
+        scratch_org = scratch_org_factory(
+            unsaved_changes={"something": 1}, task=_task_factory()
+        )
         with ExitStack() as stack:
             send_mail = stack.enter_context(patch("metecho.api.models.send_mail"))
             get_unsaved_changes = stack.enter_context(
@@ -427,8 +454,15 @@ class TestRefreshScratchOrg:
 
 @pytest.mark.django_db
 class TestConvertScratchOrg:
-    def test_convert_to_dev_org(self, mocker, scratch_org_factory, task_factory):
-        task = task_factory(epic__project__repo_id=123)
+    @pytest.mark.parametrize(
+        "_task_factory",
+        (
+            pytest.param(fixture("task_factory"), id="Task with Epic"),
+            pytest.param(fixture("task_with_project_factory"), id="Task with Project"),
+        ),
+    )
+    def test_convert_to_dev_org(self, mocker, scratch_org_factory, _task_factory):
+        task = _task_factory()
         scratch_org = scratch_org_factory(
             org_type=SCRATCH_ORG_TYPES.Playground, task=None, epic=task.epic
         )
@@ -502,10 +536,42 @@ def test_delete_scratch_org__exception(scratch_org_factory):
         assert get_latest_revision_numbers.called
 
 
-def test_refresh_github_repositories_for_user(user_factory):
-    user = MagicMock()
-    refresh_github_repositories_for_user(user)
-    assert user.refresh_repositories.called
+@pytest.mark.django_db
+class TestRefreshGitHubRepositoriesForUser:
+    def test_success(self, mocker, user_factory):
+        user = user_factory(currently_fetching_repos=True)
+        async_to_sync = mocker.patch("metecho.api.models.async_to_sync")
+        mocker.patch(
+            "metecho.api.jobs.get_all_org_repos",
+            return_value=[
+                MagicMock(id=123, html_url="https://example.com/", permissions={}),
+                MagicMock(id=456, html_url="https://example.com/", permissions={}),
+            ],
+        )
+
+        refresh_github_repositories_for_user(user)
+        user.refresh_from_db()
+
+        assert not user.currently_fetching_repos
+        assert user.repositories.count() == 2
+        assert async_to_sync.called
+
+    def test_error(self, mocker, caplog, user_factory, git_hub_repository_factory):
+        user = user_factory(currently_fetching_repos=True)
+        git_hub_repository_factory(user=user)
+        mocker.patch(
+            "metecho.api.jobs.get_all_org_repos", side_effect=Exception("Oh no!")
+        )
+        async_to_sync = mocker.patch("metecho.api.models.async_to_sync")
+
+        with pytest.raises(Exception):
+            refresh_github_repositories_for_user(user)
+        user.refresh_from_db()
+
+        assert not user.currently_fetching_repos
+        assert user.repositories.count() == 1
+        assert async_to_sync.called
+        assert "Oh no!" in caplog.text
 
 
 @pytest.mark.django_db
@@ -752,8 +818,8 @@ def test_create_pr__error(user_factory, task_factory):
 
 
 @pytest.mark.django_db
-class TestPopulateGitHubUsers:
-    def test_populate_github_users(
+class TestRefreshGitHubUsers:
+    def test_success(
         self,
         mocker,
         user_factory,
@@ -761,9 +827,8 @@ class TestPopulateGitHubUsers:
         git_hub_repository_factory,
     ):
         user = user_factory()
-        project = project_factory(repo_id=123)
+        project = project_factory(repo_id=123, currently_fetching_github_users=True)
         git_hub_repository_factory(repo_id=123, user=user)
-
         collab1 = MagicMock(
             id=123,
             login="test-user-1",
@@ -778,11 +843,12 @@ class TestPopulateGitHubUsers:
         )
         repo = MagicMock(**{"collaborators.return_value": [collab1, collab2]})
         mocker.patch(f"{PATCH_ROOT}.get_repo_info", return_value=repo)
-
         get_cached_user = mocker.patch(f"{PATCH_ROOT}.get_cached_user")
         get_cached_user.return_value.name = "FULL NAME"
+        async_to_sync = mocker.patch("metecho.api.model_mixins.async_to_sync")
 
-        populate_github_users(project, originating_user_id=None)
+        refresh_github_users(project, originating_user_id=None)
+
         project.refresh_from_db()
         assert project.github_users == [
             {
@@ -800,8 +866,10 @@ class TestPopulateGitHubUsers:
                 "permissions": {"push": True},
             },
         ]
+        assert not project.currently_fetching_github_users
+        assert async_to_sync.called
 
-    def test_populate_github_users__expand_user_error(
+    def test_expand_user_error(
         self,
         caplog,
         mocker,
@@ -813,9 +881,8 @@ class TestPopulateGitHubUsers:
         Expect the "simple" representation of the user if expanding them fails
         """
         user = user_factory()
-        project = project_factory(repo_id=123)
+        project = project_factory(repo_id=123, currently_fetching_github_users=True)
         git_hub_repository_factory(repo_id=123, user=user)
-
         collab1 = MagicMock(
             id=123,
             login="test-user-1",
@@ -827,8 +894,10 @@ class TestPopulateGitHubUsers:
         mocker.patch(
             f"{PATCH_ROOT}.get_cached_user", side_effect=Exception("GITHUB ERROR")
         )
+        async_to_sync = mocker.patch("metecho.api.model_mixins.async_to_sync")
 
-        populate_github_users(project, originating_user_id=None)
+        refresh_github_users(project, originating_user_id=None)
+
         project.refresh_from_db()
         assert project.github_users == [
             {
@@ -838,35 +907,43 @@ class TestPopulateGitHubUsers:
                 "permissions": {},
             },
         ]
+        assert not project.currently_fetching_github_users
+        assert async_to_sync.called
         assert "GITHUB ERROR" in caplog.text
 
-    def test__error(self, user_factory, project_factory, git_hub_repository_factory):
+    def test_error(
+        self, mocker, caplog, user_factory, project_factory, git_hub_repository_factory
+    ):
         user = user_factory()
-        project = project_factory(repo_id=123)
+        project = project_factory(repo_id=123, currently_fetching_github_users=True)
         git_hub_repository_factory(repo_id=123, user=user)
-        with ExitStack() as stack:
-            get_repo_info = stack.enter_context(patch(f"{PATCH_ROOT}.get_repo_info"))
-            get_repo_info.side_effect = Exception
-            async_to_sync = stack.enter_context(
-                patch("metecho.api.model_mixins.async_to_sync")
-            )
-            logger = stack.enter_context(patch(f"{PATCH_ROOT}.logger"))
+        mocker.patch(f"{PATCH_ROOT}.get_repo_info", side_effect=Exception("Oh no!"))
+        async_to_sync = mocker.patch("metecho.api.model_mixins.async_to_sync")
 
-            with pytest.raises(Exception):
-                populate_github_users(project, originating_user_id=None)
+        with pytest.raises(Exception):
+            refresh_github_users(project, originating_user_id=None)
 
-            assert logger.error.called
-            assert async_to_sync.called
+        project.refresh_from_db()
+        assert not project.currently_fetching_github_users
+        assert async_to_sync.called
+        assert "Oh no!" in caplog.text
 
 
 @pytest.mark.django_db
 class TestSubmitReview:
-    def test_good(self, task_factory, user_factory):
+    @pytest.mark.parametrize(
+        "_task_factory",
+        (
+            pytest.param(fixture("task_factory"), id="Task with Epic"),
+            pytest.param(fixture("task_with_project_factory"), id="Task with Project"),
+        ),
+    )
+    def test_good(self, user_factory, _task_factory):
         with ExitStack() as stack:
             get_repo_info = stack.enter_context(patch(f"{PATCH_ROOT}.get_repo_info"))
 
             user = user_factory()
-            task = task_factory(
+            task = _task_factory(
                 pr_is_open=True, review_valid=True, review_sha="test_sha"
             )
             task.finalize_submit_review = MagicMock()
@@ -907,7 +984,7 @@ class TestSubmitReview:
             task = task_factory(pr_is_open=True, review_valid=True, review_sha="none")
             scratch_org = scratch_org_factory(task=task, latest_commit="test_sha")
             task.finalize_submit_review = MagicMock()
-            task.epic.project.get_repo_id = MagicMock()
+            task.get_repo_id = MagicMock()
             pr = MagicMock()
             repository = MagicMock(**{"pull_request.return_value": pr})
             get_repo_info.return_value = repository
@@ -945,7 +1022,7 @@ class TestSubmitReview:
                 pr_is_open=True, review_valid=False, review_sha="test_sha"
             )
             task.finalize_submit_review = MagicMock()
-            task.epic.project.get_repo_id = MagicMock()
+            task.get_repo_id = MagicMock()
             pr = MagicMock()
             repository = MagicMock(**{"pull_request.return_value": pr})
             get_repo_info.return_value = repository

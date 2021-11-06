@@ -8,11 +8,11 @@ import { useSelector } from 'react-redux';
 import { StaticContext } from 'react-router';
 import { Redirect, RouteComponentProps, withRouter } from 'react-router-dom';
 
-import welcomeMatBG from '~img/welcome-mat-bg.png';
-import welcomeMatFG from '~img/welcome-mat-fg.png';
-import { selectUserState } from '~js/store/user/selectors';
-import { addUrlParams } from '~js/utils/api';
-import routes from '~js/utils/routes';
+import welcomeMatBG from '@/img/welcome-mat-bg.png';
+import welcomeMatFG from '@/img/welcome-mat-fg.png';
+import { selectUserState } from '@/js/store/user/selectors';
+import { addUrlParams } from '@/js/utils/api';
+import routes from '@/js/utils/routes';
 
 interface Props
   extends RouteComponentProps<
@@ -108,7 +108,7 @@ const Login = () => {
           </h2>
           <p className="slds-p-bottom_xx-large">
             {i18n.t(
-              'Metecho is a tool to help collaborate on sharable Salesforce projects.',
+              'Metecho is a tool to help collaborate on sharable Salesforce Projects.',
             )}
           </p>
           <h3 className="slds-text-heading_small slds-p-bottom_small">
@@ -122,7 +122,7 @@ const Login = () => {
                 size="x-small"
                 className="slds-m-right_x-small"
               />
-              {i18n.t('Assign epics and tasks to members of your team.')}
+              {i18n.t('Assign Epics and Tasks to members of your team.')}
             </li>
             <li className="slds-p-bottom_small slds-grid">
               <Icon
@@ -131,7 +131,7 @@ const Login = () => {
                 size="x-small"
                 className="slds-m-right_x-small"
               />
-              {i18n.t('Easily create a scratch org with the existing epic.')}
+              {i18n.t('Easily create a Dev Org for an existing Epic.')}
             </li>
             <li className="slds-p-bottom_small slds-grid">
               <Icon

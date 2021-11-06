@@ -6,12 +6,12 @@ import { Trans } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { RouteComponentProps, withRouter } from 'react-router-dom';
 
-import { LabelWithSpinner, useIsMounted } from '~js/components/utils';
-import { ThunkDispatch } from '~js/store';
-import { deleteObject } from '~js/store/actions';
-import { Epic } from '~js/store/epics/reducer';
-import { Task } from '~js/store/tasks/reducer';
-import { OBJECT_TYPES, ObjectTypes } from '~js/utils/constants';
+import { LabelWithSpinner, useIsMounted } from '@/js/components/utils';
+import { ThunkDispatch } from '@/js/store';
+import { deleteObject } from '@/js/store/actions';
+import { Epic } from '@/js/store/epics/reducer';
+import { Task } from '@/js/store/tasks/reducer';
+import { OBJECT_TYPES, ObjectTypes } from '@/js/utils/constants';
 
 interface Props extends RouteComponentProps {
   model: Epic | Task;
@@ -59,8 +59,8 @@ const DeleteModal = ({
       heading = i18n.t('Confirm Deleting Epic');
       message = (
         <Trans i18nKey="confirmDeleteEpic">
-          Are you sure you want to delete epic “{{ name: model.name }}”? This
-          will also delete any tasks and scratch orgs in this epic.
+          Are you sure you want to delete Epic “{{ name: model.name }}”? This
+          will also delete any Tasks and Orgs in this Epic.
         </Trans>
       );
       break;
@@ -68,8 +68,8 @@ const DeleteModal = ({
       heading = i18n.t('Confirm Deleting Task');
       message = (
         <Trans i18nKey="confirmDeleteTask">
-          Are you sure you want to delete task “{{ name: model.name }}”? This
-          will also delete any scratch orgs in this task.
+          Are you sure you want to delete Task “{{ name: model.name }}”? This
+          will also delete any Orgs in this Task.
         </Trans>
       );
       break;

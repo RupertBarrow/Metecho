@@ -3,11 +3,11 @@ import i18n from 'i18next';
 import React from 'react';
 import { Trans } from 'react-i18next';
 
-import seesawSvg from '!raw-loader!~img/seesaw-lg.svg';
-import { Illustration } from '~js/components/utils';
-import { Epic } from '~js/store/epics/reducer';
-import { Project } from '~js/store/projects/reducer';
-import { Task } from '~js/store/tasks/reducer';
+import seesawSvg from '@/img/seesaw-lg.svg?raw';
+import { Illustration } from '@/js/components/utils';
+import { Epic } from '@/js/store/epics/reducer';
+import { Project } from '@/js/store/projects/reducer';
+import { Task } from '@/js/store/tasks/reducer';
 
 const Overview = ({
   project,
@@ -36,12 +36,12 @@ const Overview = ({
   const help = (
     <Trans i18nKey="createScratchOrgHelp">
       <h3 className="slds-text-title_bold">
-        You are creating a Scratch Org for {{ type }} “{{ name }}”.
+        You are creating a Scratch Org for {{ type }} “{{ name }}.”
       </h3>
       <p>
-        Your new org will expire in 30 days.
+        Your new Org will expire in 30 days.
         <br />
-        You will be able to access your org from this {{ type }} page.
+        You will be able to access your Org from this {{ type }} page.
       </p>
     </Trans>
   );
@@ -86,9 +86,7 @@ const Overview = ({
             </p>
           </Trans>
         )}
-        {isProject || !project.has_push_permission
-          ? cannotContributeWarning
-          : null}
+        {!project.has_push_permission && cannotContributeWarning}
       </div>
     </div>
   );

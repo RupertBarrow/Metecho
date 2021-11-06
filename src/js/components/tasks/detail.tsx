@@ -1,29 +1,33 @@
+/* eslint-disable react-hooks/rules-of-hooks */
+
 import Button from '@salesforce/design-system-react/components/button';
 import PageHeaderControl from '@salesforce/design-system-react/components/page-header/control';
 import classNames from 'classnames';
 import { addMinutes, isPast, parseISO } from 'date-fns';
 import i18n from 'i18next';
+import { pick } from 'lodash';
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import DocumentTitle from 'react-document-title';
 import { Trans } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import { Redirect, RouteComponentProps } from 'react-router-dom';
 
-import FourOhFour from '~js/components/404';
-import CommitList from '~js/components/commits/list';
-import SubmitReviewModal from '~js/components/orgs/cards/submitReview';
-import PlaygroundOrgCard from '~js/components/orgs/playgroundCard';
+import FourOhFour from '@/js/components/404';
+import CommitList from '@/js/components/commits/list';
+import SubmitReviewModal from '@/js/components/orgs/cards/submitReview';
+import PlaygroundOrgCard from '@/js/components/orgs/playgroundCard';
 import TaskOrgCards, {
   ORG_TYPE_TRACKER_DEFAULT,
   OrgTypeTracker,
-} from '~js/components/orgs/taskOrgCards';
-import { Step } from '~js/components/steps/stepsItem';
-import CaptureModal from '~js/components/tasks/capture';
-import CreateTaskModal from '~js/components/tasks/createForm';
-import TaskStatusPath from '~js/components/tasks/path';
-import TaskStatusSteps from '~js/components/tasks/steps';
-import TourPopover from '~js/components/tour/popover';
+} from '@/js/components/orgs/taskOrgCards';
+import { Step } from '@/js/components/steps/stepsItem';
+import CaptureModal from '@/js/components/tasks/capture';
+import CreateTaskModal from '@/js/components/tasks/createForm';
+import TaskStatusPath from '@/js/components/tasks/path';
+import TaskStatusSteps from '@/js/components/tasks/steps';
+import TourPopover from '@/js/components/tour/popover';
 import {
+  ContributeCallback,
   ContributeWorkModal,
   CreateOrgModal,
   DeleteModal,
@@ -34,23 +38,23 @@ import {
   getProjectLoadingOrNotFound,
   getTaskLoadingOrNotFound,
   LabelWithSpinner,
+  OrgData,
   PageOptions,
   SpinnerWrapper,
   SubmitModal,
   useFetchEpicIfMissing,
   useFetchOrgsIfMissing,
   useFetchProjectIfMissing,
-  useFetchTasksIfMissing,
+  useFetchTaskIfMissing,
   useIsMounted,
-} from '~js/components/utils';
-import { AppState, ThunkDispatch } from '~js/store';
-import { createObject, updateObject } from '~js/store/actions';
-import { refetchOrg, refreshOrg } from '~js/store/orgs/actions';
-import { Org, OrgsByParent } from '~js/store/orgs/reducer';
-import { selectProjectCollaborator } from '~js/store/projects/selectors';
-import { selectTask, selectTaskSlug } from '~js/store/tasks/selectors';
-import { User } from '~js/store/user/reducer';
-import { selectUserState } from '~js/store/user/selectors';
+} from '@/js/components/utils';
+import { AppState, ThunkDispatch } from '@/js/store';
+import { createObject, updateObject } from '@/js/store/actions';
+import { refetchOrg, refreshOrg } from '@/js/store/orgs/actions';
+import { Org, OrgsByParent } from '@/js/store/orgs/reducer';
+import { selectProjectCollaborator } from '@/js/store/projects/selectors';
+import { User } from '@/js/store/user/reducer';
+import { selectUserState } from '@/js/store/user/selectors';
 import {
   DEFAULT_ORG_CONFIG_NAME,
   OBJECT_TYPES,
@@ -59,9 +63,9 @@ import {
   RETRIEVE_CHANGES,
   REVIEW_STATUSES,
   TASK_STATUSES,
-} from '~js/utils/constants';
-import { getBranchLink, getTaskCommits } from '~js/utils/helpers';
-import routes from '~js/utils/routes';
+} from '@/js/utils/constants';
+import { getBranchLink, getTaskCommits } from '@/js/utils/helpers';
+import routes from '@/js/utils/routes';
 
 const ResubmitButton = ({
   canSubmit,
@@ -85,6 +89,7 @@ const ResubmitButton = ({
 const TaskDetail = (
   props: RouteComponentProps<any, any, { [RETRIEVE_CHANGES]?: boolean }>,
 ) => {
+  const dispatch = useDispatch<ThunkDispatch>();
   const [fetchingChanges, setFetchingChanges] = useState(false);
   const [captureModalOpen, setCaptureModalOpen] = useState(false);
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
@@ -98,25 +103,24 @@ const TaskDetail = (
   );
   const [submitReviewModalOpen, setSubmitReviewModalOpen] = useState(false);
   const [contributeModalOpen, setContributeModalOpen] = useState(false);
-  const [createModalOrgId, setCreateModalOrgId] = useState<string | null>(null);
+  const [convertOrgData, setConvertOrgData] = useState<OrgData | null>(null);
   const isMounted = useIsMounted();
 
   const { project, projectSlug } = useFetchProjectIfMissing(props);
   const { epic, epicSlug, epicCollaborators } = useFetchEpicIfMissing(
-    project,
+    { project },
     props,
   );
-  const dispatch = useDispatch<ThunkDispatch>();
-  useFetchTasksIfMissing(epic, props);
-  const selectTaskWithProps = useCallback(selectTask, []);
-  const selectTaskSlugWithProps = useCallback(selectTaskSlug, []);
-  const task = useSelector((state: AppState) =>
-    selectTaskWithProps(state, props),
+  const hasEpic = Boolean(epicSlug);
+  const { task, taskSlug } = useFetchTaskIfMissing(
+    {
+      projectId: project?.id,
+      epicId: epic?.id,
+      filterByEpic: hasEpic,
+    },
+    props,
   );
-  const taskSlug = useSelector((state: AppState) =>
-    selectTaskSlugWithProps(state, props),
-  );
-  const { orgs } = useFetchOrgsIfMissing({ task, props });
+  const { orgs } = useFetchOrgsIfMissing({ taskId: task?.id }, props);
   const user = useSelector(selectUserState) as User;
   const qaUser = useSelector((state: AppState) =>
     selectProjectCollaborator(state, project?.id, task?.assigned_qa),
@@ -226,7 +230,7 @@ const TaskDetail = (
     setCreateOrgModalOpen(false);
     setAssignUserModalOpen(null);
     setContributeModalOpen(false);
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
   const closeSubmitReviewModal = () => {
     setSubmitReviewModalOpen(false);
@@ -240,7 +244,7 @@ const TaskDetail = (
     setCreateOrgModalOpen(false);
     setAssignUserModalOpen(null);
     setContributeModalOpen(false);
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
   const closeCaptureModal = () => {
     setCaptureModalOpen(false);
@@ -254,7 +258,7 @@ const TaskDetail = (
     setCreateOrgModalOpen(false);
     setAssignUserModalOpen(null);
     setContributeModalOpen(false);
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
   // edit modal related...
   const openEditModal = () => {
@@ -266,7 +270,7 @@ const TaskDetail = (
     setCreateOrgModalOpen(false);
     setAssignUserModalOpen(null);
     setContributeModalOpen(false);
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
   const closeEditModal = () => {
     setEditModalOpen(false);
@@ -281,7 +285,7 @@ const TaskDetail = (
     setCreateOrgModalOpen(false);
     setAssignUserModalOpen(null);
     setContributeModalOpen(false);
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
   const closeDeleteModal = () => {
     setDeleteModalOpen(false);
@@ -297,7 +301,7 @@ const TaskDetail = (
     setDeleteModalOpen(false);
     setCreateOrgModalOpen(false);
     setContributeModalOpen(false);
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
   const closeAssignUserModal = () => {
     setAssignUserModalOpen(null);
@@ -313,7 +317,7 @@ const TaskDetail = (
     setDeleteModalOpen(false);
     setAssignUserModalOpen(null);
     setContributeModalOpen(false);
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
   const closeCreateOrgModal = () => {
     setCreateOrgModalOpen(false);
@@ -329,15 +333,15 @@ const TaskDetail = (
     setDeleteModalOpen(false);
     setCreateOrgModalOpen(false);
     setAssignUserModalOpen(null);
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
   const closeContributeModal = useCallback(() => {
     setContributeModalOpen(false);
   }, []);
 
   // "create task" modal related:
-  const openCreateModal = useCallback((orgId: string) => {
-    setCreateModalOrgId(orgId);
+  const openCreateModal = useCallback((orgData: OrgData) => {
+    setConvertOrgData(orgData);
     setContributeModalOpen(false);
     setSubmitReviewModalOpen(false);
     setCaptureModalOpen(false);
@@ -348,7 +352,7 @@ const TaskDetail = (
     setAssignUserModalOpen(null);
   }, []);
   const closeCreateModal = () => {
-    setCreateModalOrgId(null);
+    setConvertOrgData(null);
   };
 
   const doRefetchOrg = useCallback(
@@ -421,35 +425,40 @@ const TaskDetail = (
     }
   }, [devOrg, doRefetchOrg, orgHasChanges]);
 
-  const doContributeFromScratchOrg = useCallback(
-    ({ id, useExistingTask }: { id: string; useExistingTask: boolean }) => {
+  const doContributeFromScratchOrg: ContributeCallback = useCallback(
+    (orgData, { useExistingTask }) => {
       closeContributeModal();
+      // eslint-disable-next-line no-negated-condition
       if (!useExistingTask) {
-        openCreateModal(id);
-      } /* istanbul ignore else */ else if (!devOrg) {
+        openCreateModal(orgData);
+      } else {
         /* istanbul ignore else */
-        if (!userIsAssignedDev) {
-          // Assign current user as Dev
+        // eslint-disable-next-line no-lonely-if
+        if (!devOrg) {
+          /* istanbul ignore else */
+          if (!userIsAssignedDev) {
+            // Assign current user as Dev
+            dispatch(
+              updateObject({
+                objectType: OBJECT_TYPES.TASK,
+                url: window.api_urls.task_assignees(task?.id),
+                data: {
+                  assigned_dev: user.github_id,
+                },
+              }),
+            );
+          }
+          // Convert Scratch Org to Dev Org
           dispatch(
             updateObject({
-              objectType: OBJECT_TYPES.TASK,
-              url: window.api_urls.task_assignees(task?.id),
-              data: {
-                assigned_dev: user.github_id,
-              },
+              objectType: OBJECT_TYPES.ORG,
+              url: window.api_urls.scratch_org_detail(orgData.id),
+              data: { org_type: ORG_TYPES.DEV },
+              patch: true,
             }),
           );
+          history.replace({ state: { [RETRIEVE_CHANGES]: true } });
         }
-        // Convert Scratch Org to Dev Org
-        dispatch(
-          updateObject({
-            objectType: OBJECT_TYPES.ORG,
-            url: window.api_urls.scratch_org_detail(id),
-            data: { org_type: ORG_TYPES.DEV },
-            patch: true,
-          }),
-        );
-        history.replace({ state: { [RETRIEVE_CHANGES]: true } });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -592,11 +601,13 @@ const TaskDetail = (
     return projectLoadingOrNotFound;
   }
 
-  const epicLoadingOrNotFound = getEpicLoadingOrNotFound({
-    project,
-    epic,
-    epicSlug,
-  });
+  const epicLoadingOrNotFound =
+    hasEpic &&
+    getEpicLoadingOrNotFound({
+      project,
+      epic,
+      epicSlug,
+    });
 
   if (epicLoadingOrNotFound !== false) {
     return epicLoadingOrNotFound;
@@ -605,6 +616,7 @@ const TaskDetail = (
   const taskLoadingOrNotFound = getTaskLoadingOrNotFound({
     project,
     epic,
+    epicSlug,
     task,
     taskSlug,
   });
@@ -615,18 +627,22 @@ const TaskDetail = (
 
   // This redundant check is used to satisfy TypeScript...
   /* istanbul ignore if */
-  if (!project || !epic || !task) {
+  if (!project || (hasEpic && !epic) || !task) {
     return <FourOhFour />;
   }
 
   if (
     (projectSlug && projectSlug !== project.slug) ||
-    (epicSlug && epicSlug !== epic.slug) ||
+    (epicSlug && epicSlug !== epic?.slug) ||
     (taskSlug && taskSlug !== task.slug)
   ) {
     // Redirect to most recent project/epic/task slug
-    return (
-      <Redirect to={routes.task_detail(project.slug, epic.slug, task.slug)} />
+    return hasEpic && epic ? (
+      <Redirect
+        to={routes.epic_task_detail(project.slug, epic.slug, task.slug)}
+      />
+    ) : (
+      <Redirect to={routes.project_task_detail(project.slug, task.slug)} />
     );
   }
 
@@ -653,6 +669,7 @@ const TaskDetail = (
             handleOptionSelect={handlePageOptionSelect}
           />
           <TourPopover
+            id="tour-task-edit"
             align="left"
             heading={i18n.t('Edit or delete this Task')}
             body={
@@ -701,6 +718,7 @@ const TaskDetail = (
           disabled={currentlySubmitting}
         />
         <TourPopover
+          id="tour-task-submit"
           align="top left"
           heading={i18n.t('Submit changes for testing')}
           body={
@@ -772,6 +790,7 @@ const TaskDetail = (
           }
         />
         <TourPopover
+          id="tour-task-retrieve"
           align="right"
           heading={i18n.t('Retrieve changes')}
           body={
@@ -788,13 +807,15 @@ const TaskDetail = (
     );
   }
 
-  const epicUrl = routes.epic_detail(project.slug, epic.slug);
+  const projectUrl = routes.project_detail(project.slug);
+  const epicUrl = epic ? routes.epic_detail(project.slug, epic.slug) : null;
   let headerUrl, headerUrlText; // eslint-disable-line one-var
+
   /* istanbul ignore else */
   if (task.branch_url && task.branch_name) {
     headerUrl = task.branch_url;
     headerUrlText = task.branch_name;
-  } else if (epic.branch_url && epic.branch_name) {
+  } else if (epic?.branch_url && epic?.branch_name) {
     headerUrl = epic.branch_url;
     headerUrlText = epic.branch_name;
   } else {
@@ -804,15 +825,20 @@ const TaskDetail = (
 
   return (
     <DocumentTitle
-      title={` ${task.name} | ${epic.name} | ${project.name} | ${i18n.t(
-        'Metecho',
-      )}`}
+      title={
+        epic
+          ? `${task.name} | ${epic.name} | ${project.name} | ${i18n.t(
+              'Metecho',
+            )}`
+          : `${task.name} | ${project.name} | ${i18n.t('Metecho')}`
+      }
     >
       <DetailPageLayout
         type={OBJECT_TYPES.TASK}
         title={task.name}
         titlePopover={
           <TourPopover
+            id="tour-task-name"
             align="bottom left"
             heading={i18n.t('Task name & GitHub link')}
             body={
@@ -833,10 +859,15 @@ const TaskDetail = (
             name: project.name,
             url: routes.project_detail(project.slug),
           },
-          {
-            name: epic.name,
-            url: epicUrl,
-          },
+          epic
+            ? {
+                name: epic.name,
+                url: epicUrl as string,
+              }
+            : {
+                name: i18n.t('no Epic'),
+                emphasis: true,
+              },
           { name: task.name },
         ]}
         onRenderHeaderActions={onRenderHeaderActions}
@@ -849,6 +880,7 @@ const TaskDetail = (
             >
               <TaskStatusPath task={task} />
               <TourPopover
+                id="tour-task-path"
                 align="left"
                 heading={i18n.t('Task progress path')}
                 body={
@@ -879,8 +911,8 @@ const TaskDetail = (
                     </h3>
                     <p>
                       <Trans i18nKey="taskCanceledHelp">
-                        This task was canceled on GitHub before completion.
-                        Progress on this task has not been lost, but the task
+                        This Task was canceled on GitHub before completion.
+                        Progress on this Task has not been lost, but the Task
                         must be{' '}
                         <ResubmitButton
                           canSubmit={
@@ -908,6 +940,7 @@ const TaskDetail = (
                       handleAction={handleStepAction}
                     />
                     <TourPopover
+                      id="tour-task-next-steps"
                       align="top"
                       heading={i18n.t('Wondering what to do next?')}
                       body={
@@ -941,13 +974,12 @@ const TaskDetail = (
             userHasPermissions={project.has_push_permission}
             epicUsers={epicCollaborators}
             githubUsers={project.github_users}
-            epicCreatingBranch={epic.currently_creating_branch}
-            epicUrl={epicUrl}
+            epicCreatingBranch={Boolean(epic?.currently_creating_branch)}
             repoUrl={project.repo_url}
             openCaptureModal={openCaptureModal}
             assignUserModalOpen={assignUserModalOpen}
             isCreatingOrg={isCreatingOrg}
-            isRefreshingUsers={Boolean(project.currently_refreshing_gh_users)}
+            isRefreshingUsers={project.currently_fetching_github_users}
             openAssignUserModal={openAssignUserModal}
             closeAssignUserModal={closeAssignUserModal}
             openSubmitReviewModal={openSubmitReviewModal}
@@ -962,6 +994,7 @@ const TaskDetail = (
         )}
         <div className="slds-m-vertical_large slds-is-relative heading">
           <TourPopover
+            id="tour-task-scratch-org"
             align="top left"
             heading={i18n.t('View & play with a Task')}
             body={
@@ -1003,7 +1036,7 @@ const TaskDetail = (
                   label={i18n.t('Create Scratch Org')}
                   variant="outline-brand"
                   onClick={openCreateOrgModal}
-                  disabled={epic.currently_creating_branch}
+                  disabled={Boolean(epic?.currently_creating_branch)}
                 />
               )}
             </>
@@ -1054,7 +1087,7 @@ const TaskDetail = (
               model={task}
               modelType={OBJECT_TYPES.TASK}
               isOpen={deleteModalOpen}
-              redirect={epicUrl}
+              redirect={epicUrl || projectUrl}
               handleClose={closeDeleteModal}
             />
           </>
@@ -1080,7 +1113,7 @@ const TaskDetail = (
               task={task}
               isOpen={contributeModalOpen}
               hasPermissions={project.has_push_permission}
-              orgId={playgroundOrg.id}
+              orgData={pick(playgroundOrg, ['id', 'org_config_name'])}
               hasDevOrg={Boolean(devOrg)}
               closeModal={closeContributeModal}
               doContribute={doContributeFromScratchOrg}
@@ -1088,8 +1121,8 @@ const TaskDetail = (
             <CreateTaskModal
               project={project}
               epic={epic}
-              isOpenOrOrgId={createModalOrgId}
-              playgroundOrg={playgroundOrg}
+              isOpen={Boolean(convertOrgData)}
+              playgroundOrgData={convertOrgData}
               closeCreateModal={closeCreateModal}
             />
           </>

@@ -2,16 +2,21 @@ import { fireEvent, waitForElementToBeRemoved } from '@testing-library/react';
 import React from 'react';
 import { StaticRouter } from 'react-router-dom';
 
-import ProjectDetail from '~js/components/projects/detail';
-import { createObject, fetchObject, fetchObjects } from '~js/store/actions';
-import { onboarded } from '~js/store/user/actions';
-import { SHOW_WALKTHROUGH, WALKTHROUGH_TYPES } from '~js/utils/constants';
-import routes from '~js/utils/routes';
+import ProjectDetail from '@/js/components/projects/detail';
+import { createObject, fetchObject, fetchObjects } from '@/js/store/actions';
+import { onboarded } from '@/js/store/user/actions';
+import { SHOW_WALKTHROUGH, WALKTHROUGH_TYPES } from '@/js/utils/constants';
+import routes from '@/js/utils/routes';
 
+import {
+  sampleEpic1,
+  sampleEpic2,
+  sampleProject1,
+} from '../../../../src/stories/fixtures';
 import { renderWithRedux, storeWithThunk } from './../../utils';
 
-jest.mock('~js/store/actions');
-jest.mock('~js/store/user/actions');
+jest.mock('@/js/store/actions');
+jest.mock('@/js/store/user/actions');
 
 onboarded.mockReturnValue(() => Promise.resolve({ type: 'TEST', payload: {} }));
 fetchObject.mockReturnValue(() => Promise.resolve({ type: 'TEST' }));
@@ -63,7 +68,7 @@ const defaultState = {
         description: 'This is a test project.',
         description_rendered: '<p>This is a test project.</p>',
         repo_url: 'https://github.com/test/test-repo',
-        github_users: [],
+        github_users: sampleProject1.github_users,
         repo_image_url: 'https://github.com/repo-image',
         org_config_names: [{ key: 'dev' }, { key: 'qa' }],
         has_push_permission: true,
@@ -82,7 +87,7 @@ const defaultState = {
           project: 'p1',
           description: 'Epic Description',
           description_rendered: '<p>Epic Description</p>',
-          github_users: [],
+          github_users: sampleEpic1.github_users,
           status: 'In progress',
         },
         {
@@ -92,7 +97,7 @@ const defaultState = {
           project: 'p1',
           description: 'Epic Description',
           description_rendered: '<p>Epic Description</p>',
-          github_users: [],
+          github_users: sampleEpic2.github_users,
           status: 'Planned',
         },
         {
@@ -121,6 +126,7 @@ const defaultState = {
       fetched: true,
     },
   },
+  tasks: {},
   orgs: {
     orgs: {
       [defaultOrg.id]: defaultOrg,
@@ -136,6 +142,70 @@ const defaultState = {
     onboarded_at: 'now',
   },
 };
+
+const tasks = [
+  {
+    id: 'task1',
+    name: 'Task 1',
+    slug: 'task-1',
+    old_slugs: ['old-slug'],
+    epic: {
+      id: 'epic1',
+      name: 'Epic 1',
+      slug: 'epic-1',
+      github_users: [],
+    },
+    project: null,
+    root_project: 'p1',
+    branch_url: 'https://github.com/test/test-repo/tree/feature/epic-1__task-1',
+    branch_name: 'feature/epic-1__task-1',
+    description: 'Task Description',
+    description_rendered: '<p>Task Description</p>',
+    has_unmerged_commits: false,
+    commits: [],
+    assigned_dev: 'my-user',
+    assigned_qa: null,
+  },
+  {
+    id: 'task2',
+    name: 'Task 2',
+    slug: 'task-2',
+    old_slugs: ['old-slug'],
+    epic: {
+      id: 'epic2',
+      name: 'Epic 2',
+      slug: 'epic-2',
+      github_users: [],
+    },
+    project: null,
+    root_project: 'p1',
+    branch_url: 'https://github.com/test/test-repo/tree/feature/epic-2__task-2',
+    branch_name: 'feature/epic-2__task-2',
+    description: 'Task Description',
+    description_rendered: '<p>Task Description</p>',
+    has_unmerged_commits: false,
+    commits: [],
+    assigned_dev: null,
+    assigned_qa: 'my-user',
+  },
+  {
+    id: 'task3',
+    name: 'Task 3',
+    slug: 'task-3',
+    old_slugs: [],
+    epic: null,
+    project: 'p1',
+    root_project: 'p1',
+    branch_url: 'https://github.com/test/test-repo/tree/feature/task-3',
+    branch_name: 'feature/task-3',
+    description: 'Task Description',
+    description_rendered: '<p>Task Description</p>',
+    has_unmerged_commits: false,
+    commits: [],
+    assigned_dev: null,
+    assigned_qa: null,
+  },
+];
 
 describe('<ProjectDetail />', () => {
   const setup = (options) => {
@@ -172,7 +242,28 @@ describe('<ProjectDetail />', () => {
     expect(getAllByTitle('Project 1')[0]).toBeVisible();
     expect(getByText('This is a test project.')).toBeVisible();
     expect(getByText('Epic 1')).toBeVisible();
-    expect(getByText('Epics for Project 1')).toBeVisible();
+  });
+
+  test('renders empty epics list', () => {
+    const { getByText, getAllByTitle } = setup({
+      initialState: {
+        ...defaultState,
+        epics: {
+          p1: {
+            epics: [],
+            next: null,
+            notFound: [],
+            fetched: true,
+          },
+        },
+      },
+    });
+
+    expect(getAllByTitle('Project 1')[0]).toBeVisible();
+    expect(getByText('This is a test project.')).toBeVisible();
+    expect(
+      getByText('You can create a new Epic', { exact: false }),
+    ).toBeVisible();
   });
 
   test('renders readonly project detail', () => {
@@ -199,29 +290,9 @@ describe('<ProjectDetail />', () => {
       },
     });
 
-    expect(getByText('Epics for Project 1')).toBeVisible();
     expect(
       getByText('There are no Epics for this Project.', { exact: false }),
     ).toBeVisible();
-  });
-
-  test('renders different title if no epics', () => {
-    const { getByText, queryByText } = setup({
-      initialState: {
-        ...defaultState,
-        epics: {
-          p1: {
-            epics: [],
-            next: null,
-            notFound: [],
-            fetched: true,
-          },
-        },
-      },
-    });
-
-    expect(getByText('Create an Epic for Project 1')).toBeVisible();
-    expect(queryByText('Epics for Project 1')).toBeNull();
   });
 
   describe('project not found', () => {
@@ -243,7 +314,7 @@ describe('<ProjectDetail />', () => {
       });
 
       expect(queryByText('Project 1')).toBeNull();
-      expect(getByText('list of all projects')).toBeVisible();
+      expect(getByText('list of all Projects')).toBeVisible();
     });
   });
 
@@ -261,7 +332,7 @@ describe('<ProjectDetail />', () => {
       const { getByText, queryByText } = setup({ projectSlug: '' });
 
       expect(queryByText('Project 1')).toBeNull();
-      expect(getByText('list of all projects')).toBeVisible();
+      expect(getByText('list of all Projects')).toBeVisible();
     });
   });
 
@@ -291,7 +362,7 @@ describe('<ProjectDetail />', () => {
 
   describe('epics have not been fetched', () => {
     test('fetches epics from API', () => {
-      const { queryByText } = setup({
+      setup({
         initialState: {
           ...defaultState,
           epics: {
@@ -305,7 +376,6 @@ describe('<ProjectDetail />', () => {
         },
       });
 
-      expect(queryByText('Epics for Project 1')).toBeNull();
       expect(fetchObjects).toHaveBeenCalledWith({
         filters: { project: 'p1' },
         objectType: 'epic',
@@ -387,6 +457,89 @@ describe('<ProjectDetail />', () => {
     });
   });
 
+  describe('Tasks tab', () => {
+    test('fetches tasks list', () => {
+      const { getAllByText } = setup();
+      fireEvent.click(getAllByText('Tasks')[0]);
+
+      expect(fetchObjects).toHaveBeenCalledWith({
+        filters: { project: 'p1' },
+        objectType: 'task',
+      });
+    });
+
+    test('renders tasks list', async () => {
+      const { getAllByText, findByText } = setup({
+        initialState: {
+          ...defaultState,
+          tasks: {
+            p1: {
+              fetched: true,
+              notFound: [],
+              tasks,
+            },
+          },
+        },
+      });
+
+      expect.assertions(1);
+      fireEvent.click(getAllByText('Tasks')[0]);
+      const task = await findByText('Task 2');
+
+      expect(task).toBeVisible();
+    });
+
+    test('renders empty tasks list', async () => {
+      const { getAllByText, findByText } = setup({
+        initialState: {
+          ...defaultState,
+          tasks: {
+            p1: {
+              fetched: true,
+              notFound: [],
+              tasks: [],
+            },
+          },
+        },
+      });
+
+      expect.assertions(1);
+      fireEvent.click(getAllByText('Tasks')[0]);
+      const msg = await findByText('There are no Tasks for this Project.', {
+        exact: false,
+      });
+
+      expect(msg).toBeVisible();
+    });
+
+    describe('<CreateTaskModal />', () => {
+      test('opens/closes form', async () => {
+        expect.assertions(2);
+        const { queryByText, findByText, getByText, getAllByText, getByTitle } =
+          setup({
+            initialState: {
+              ...defaultState,
+              tasks: {
+                p1: {
+                  fetched: true,
+                  notFound: [],
+                  tasks: [],
+                },
+              },
+            },
+          });
+        fireEvent.click(getAllByText('Tasks')[0]);
+        fireEvent.click(await findByText('Create a Task'));
+
+        expect(getByText('Create a Task for Project 1')).toBeVisible();
+
+        fireEvent.click(getByTitle('Cancel'));
+
+        expect(queryByText('Create a Task for Project 1')).toBeNull();
+      });
+    });
+  });
+
   describe('<CreateEpicModal />', () => {
     test('opens/closes form', () => {
       const { queryByText, getByText, getByTitle } = setup();
@@ -438,6 +591,33 @@ describe('<ProjectDetail />', () => {
       expect(onboarded).toHaveBeenCalledTimes(1);
     });
 
+    describe('play tour click', () => {
+      test('runs tour', async () => {
+        const { queryByText, findByText, getByText, getByTitle } = setup({
+          initialState: {
+            ...defaultState,
+            user: {
+              username: 'foobar',
+              onboarded_at: null,
+            },
+          },
+        });
+
+        expect.assertions(2);
+        await findByText('What can Metecho help you do today?', {
+          exact: false,
+        });
+        fireEvent.click(getByText('Start Play Walkthrough'));
+        const dialog = await findByText('View & play with a Project');
+
+        expect(dialog).toBeVisible();
+
+        fireEvent.click(getByTitle('Close'));
+
+        expect(queryByText('View & play with a Project')).toBeNull();
+      });
+    });
+
     describe('plan tour click', () => {
       test('runs tour', async () => {
         const { queryByText, findByText, getByText, getByTitle } = setup({
@@ -455,13 +635,44 @@ describe('<ProjectDetail />', () => {
           exact: false,
         });
         fireEvent.click(getByText('Start Plan Walkthrough'));
-        const dialog = await findByText('Create Epics to group Tasks');
+        const dialog = await findByText('List of Tasks');
 
         expect(dialog).toBeVisible();
 
         fireEvent.click(getByTitle('Close'));
 
-        expect(queryByText('Create Epics to group Tasks')).toBeNull();
+        expect(queryByText('List of Tasks')).toBeNull();
+      });
+    });
+
+    describe('help tour click', () => {
+      test('runs tour with task tab active', async () => {
+        const { queryByText, findByText, getByText, getByTitle } = setup({
+          initialState: {
+            ...defaultState,
+            user: {
+              username: 'foobar',
+              onboarded_at: null,
+            },
+          },
+        });
+
+        expect.assertions(3);
+        await findByText('What can Metecho help you do today?', {
+          exact: false,
+        });
+        fireEvent.click(getByText('Start Help Walkthrough'));
+        const dialog = await findByText('List of Tasks');
+
+        expect(dialog).toBeVisible();
+
+        const btn = await findByText('Create a Task');
+
+        expect(btn).toBeVisible();
+
+        fireEvent.click(getByTitle('Close'));
+
+        expect(queryByText('List of Tasks')).toBeNull();
       });
     });
 
@@ -472,7 +683,7 @@ describe('<ProjectDetail />', () => {
         });
 
         expect.assertions(2);
-        const dialog = await findByText('Create Epics to group Tasks');
+        const dialog = await findByText('List of Tasks');
 
         expect(dialog).toBeVisible();
         expect(history.replace).toHaveBeenCalledWith({ state: {} });
@@ -494,6 +705,15 @@ describe('<ProjectDetail />', () => {
               epics: [],
               tasks: [],
             },
+          },
+          projects: {
+            ...defaultState.projects,
+            projects: [
+              {
+                ...defaultState.projects.projects[0],
+                has_push_permission: false,
+              },
+            ],
           },
         },
       });
@@ -536,6 +756,74 @@ describe('<ProjectDetail />', () => {
         expect(createObject.mock.calls[0][0].data.org_config_name).toEqual(
           'qa',
         );
+      });
+    });
+  });
+
+  describe('<ContributeWorkModal />', () => {
+    describe('"cancel" click', () => {
+      test('closes modal', () => {
+        const { getByText, queryByText, getByLabelText } = setup();
+        fireEvent.click(getByText('Contribute Work'));
+
+        expect(getByText('Contribute Work from Scratch Org')).toBeVisible();
+
+        fireEvent.click(getByLabelText('Create a new Task with no Epic'));
+        fireEvent.click(getByLabelText('Create a new Epic and Task'));
+        fireEvent.click(getByText('Cancel'));
+
+        expect(queryByText('Contribute Work from Scratch Org')).toBeNull();
+      });
+    });
+
+    describe('"Contribute" click with Epic', () => {
+      test('opens Create Epic modal', () => {
+        const { getByText } = setup();
+        fireEvent.click(getByText('Contribute Work'));
+        fireEvent.click(getByText('Contribute'));
+
+        expect(
+          getByText('Create an Epic to Contribute Work from Scratch Org'),
+        ).toBeVisible();
+      });
+    });
+
+    describe('"Contribute" click without Epic', () => {
+      test('opens Create Task modal', () => {
+        const { getByText, getByLabelText } = setup();
+        fireEvent.click(getByText('Contribute Work'));
+        fireEvent.click(getByLabelText('Create a new Task with no Epic'));
+        fireEvent.click(getByText('Contribute'));
+
+        expect(
+          getByText('Create a Task to Contribute Work from Scratch Org'),
+        ).toBeVisible();
+      });
+    });
+
+    describe('User does not have permissions', () => {
+      test('does not allow contributing', () => {
+        const projects = {
+          ...defaultState.projects,
+          projects: [
+            {
+              ...defaultState.projects.projects[0],
+              has_push_permission: false,
+            },
+          ],
+        };
+        const { getByText } = setup({
+          initialState: {
+            ...defaultState,
+            projects,
+          },
+        });
+        fireEvent.click(getByText('Contribute Work'));
+
+        expect(getByText('Contribute Work from Scratch Org')).toBeVisible();
+        expect(
+          getByText('You do not have “push” access', { exact: false }),
+        ).toBeVisible();
       });
     });
   });

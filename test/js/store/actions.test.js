@@ -1,7 +1,7 @@
 import fetchMock from 'fetch-mock';
 
-import * as actions from '~js/store/actions';
-import { addUrlParams } from '~js/utils/api';
+import * as actions from '@/js/store/actions';
+import { addUrlParams } from '@/js/utils/api';
 
 import { storeWithThunk } from './../utils';
 
@@ -287,7 +287,7 @@ describe('fetchObject', () => {
     test('stores null if no project returned from api', () => {
       const store = storeWithThunk({});
       const filters = { slug: 'project-1' };
-      fetchMock.getOnce(addUrlParams(url, filters), 404);
+      fetchMock.getOnce(addUrlParams(url, filters), []);
       const started = {
         type: 'FETCH_OBJECT_STARTED',
         payload: { filters, ...objectPayload },

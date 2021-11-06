@@ -1,7 +1,8 @@
+import { pick } from 'lodash';
 import React from 'react';
 
-import EpicStatusSteps from '~js/components/epics/steps';
-import { EPIC_STATUSES, TASK_STATUSES } from '~js/utils/constants';
+import EpicStatusSteps from '@/js/components/epics/steps';
+import { EPIC_STATUSES, TASK_STATUSES } from '@/js/utils/constants';
 
 import { render } from './../../utils';
 
@@ -45,7 +46,7 @@ const mergedEpic = {
 };
 const defaultTask = {
   id: 'task',
-  epic: 'epic1',
+  epic: pick(defaultEpic, ['id', 'slug', 'name', 'github_users']),
   review_valid: false,
   review_status: '',
   pr_is_open: false,

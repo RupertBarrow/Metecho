@@ -1,10 +1,14 @@
 import i18n from 'i18next';
 
-import { ThunkResult } from '~js/store';
-import { isCurrentUser } from '~js/store/helpers';
-import { Task } from '~js/store/tasks/reducer';
-import { addToast } from '~js/store/toasts/actions';
+import { ThunkResult } from '@/js/store';
+import { isCurrentUser } from '@/js/store/helpers';
+import { Task } from '@/js/store/tasks/reducer';
+import { addToast } from '@/js/store/toasts/actions';
 
+interface TaskCreated {
+  type: 'TASK_CREATE';
+  payload: Task;
+}
 interface TaskUpdated {
   type: 'TASK_UPDATE';
   payload: Task;
@@ -14,7 +18,12 @@ interface TaskCreatePRFailed {
   payload: Task;
 }
 
-export type TaskAction = TaskUpdated | TaskCreatePRFailed;
+export type TaskAction = TaskCreated | TaskUpdated | TaskCreatePRFailed;
+
+export const createTask = (payload: Task): TaskCreated => ({
+  type: 'TASK_CREATE',
+  payload,
+});
 
 export const updateTask = (payload: Task): TaskUpdated => ({
   type: 'TASK_UPDATE',
@@ -34,7 +43,7 @@ export const createTaskPR =
       dispatch(
         addToast({
           heading: i18n.t(
-            'Successfully submitted task for testing: “{{task_name}}”.',
+            'Successfully submitted Task for testing: “{{task_name}}.”',
             { task_name: model.name },
           ),
           linkText: model.pr_url ? i18n.t('View pull request.') : undefined,
@@ -62,7 +71,7 @@ export const createTaskPRFailed =
       dispatch(
         addToast({
           heading: i18n.t(
-            'Uh oh. There was an error submitting task for testing: “{{task_name}}”.',
+            'Uh oh. There was an error submitting Task for testing: “{{task_name}}.”',
             { task_name: model.name },
           ),
           details: message,
@@ -90,7 +99,7 @@ export const submitReview =
       dispatch(
         addToast({
           heading: i18n.t(
-            'Successfully submitted review for task: “{{task_name}}”.',
+            'Successfully submitted review for Task: “{{task_name}}.”',
             { task_name: model.name },
           ),
           linkText: model.pr_url ? i18n.t('View pull request.') : undefined,
@@ -118,7 +127,7 @@ export const submitReviewFailed =
       dispatch(
         addToast({
           heading: i18n.t(
-            'Uh oh. There was an error submitting review for task: “{{task_name}}”.',
+            'Uh oh. There was an error submitting review for Task: “{{task_name}}.”',
             { task_name: model.name },
           ),
           details: message,

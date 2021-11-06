@@ -1,10 +1,14 @@
 import i18n from 'i18next';
 
-import { ThunkResult } from '~js/store';
-import { Epic } from '~js/store/epics/reducer';
-import { isCurrentUser } from '~js/store/helpers';
-import { addToast } from '~js/store/toasts/actions';
+import { ThunkResult } from '@/js/store';
+import { Epic } from '@/js/store/epics/reducer';
+import { isCurrentUser } from '@/js/store/helpers';
+import { addToast } from '@/js/store/toasts/actions';
 
+interface EpicCreated {
+  type: 'EPIC_CREATE';
+  payload: Epic;
+}
 interface EpicUpdated {
   type: 'EPIC_UPDATE';
   payload: Epic;
@@ -14,7 +18,12 @@ interface EpicCreatePRFailed {
   payload: Epic;
 }
 
-export type EpicAction = EpicUpdated | EpicCreatePRFailed;
+export type EpicAction = EpicCreated | EpicUpdated | EpicCreatePRFailed;
+
+export const createEpic = (payload: Epic): EpicCreated => ({
+  type: 'EPIC_CREATE',
+  payload,
+});
 
 export const updateEpic = (payload: Epic): EpicUpdated => ({
   type: 'EPIC_UPDATE',
@@ -35,7 +44,7 @@ export const createEpicPR =
       dispatch(
         addToast({
           heading: i18n.t(
-            'Successfully submitted epic for review on GitHub: “{{epic_name}}”.',
+            'Successfully submitted Epic for review on GitHub: “{{epic_name}}.”',
             { epic_name: model.name },
           ),
           linkText: model.pr_url ? i18n.t('View pull request.') : undefined,
@@ -67,7 +76,7 @@ export const createEpicPRFailed =
       dispatch(
         addToast({
           heading: i18n.t(
-            'Uh oh. There was an error submitting epic for review on GitHub: “{{epic_name}}”.',
+            'Uh oh. There was an error submitting Epic for review on GitHub: “{{epic_name}}.”',
             { epic_name: model.name },
           ),
           details: message,

@@ -7,53 +7,58 @@ import i18n from 'i18next';
 import React, { useCallback, useState } from 'react';
 import { Trans } from 'react-i18next';
 
-import mapSvg from '!raw-loader!~img/map-lg.svg';
-import { Illustration } from '~js/components/utils';
-import { Epic } from '~js/store/epics/reducer';
-import { Project } from '~js/store/projects/reducer';
-import { Task } from '~js/store/tasks/reducer';
+import mapSvg from '@/img/map-lg.svg?raw';
+import { Illustration } from '@/js/components/utils';
+import { Epic } from '@/js/store/epics/reducer';
+import { Org } from '@/js/store/orgs/reducer';
+import { Task } from '@/js/store/tasks/reducer';
 
-type ContributeCallback = ({
-  id,
-  useExistingTask,
-}: {
-  id: string;
-  useExistingTask: boolean;
-}) => void;
+export type OrgData = Pick<Org, 'id' | 'org_config_name'>;
+
+export type ContributeCallback = (
+  orgData: OrgData,
+  {
+    useExistingTask,
+    createEpicLessTask,
+  }: {
+    useExistingTask?: boolean;
+    createEpicLessTask?: boolean;
+  },
+) => void;
 
 interface Props {
-  project?: Project;
   epic?: Epic;
   task?: Task;
   isOpen: boolean;
   hasPermissions: boolean;
-  orgId: string;
+  orgData: OrgData;
   hasDevOrg?: boolean;
   closeModal: () => void;
   doContribute: ContributeCallback;
 }
 
 const ContributeWorkModal = ({
-  project,
   epic,
   task,
   isOpen,
   hasPermissions,
-  orgId,
+  orgData,
   hasDevOrg,
   closeModal,
   doContribute,
 }: Props) => {
   const [useExistingTask, setUseExistingTask] = useState(!hasDevOrg);
+  const [createEpicLessTask, setCreateEpicLessTask] = useState(false);
 
   const doClose = useCallback(() => {
     setUseExistingTask(!hasDevOrg);
+    setCreateEpicLessTask(false);
     closeModal();
   }, [closeModal, hasDevOrg]);
 
   const handleSubmit = useCallback(
-    () => doContribute({ id: orgId, useExistingTask }),
-    [doContribute, orgId, useExistingTask],
+    () => doContribute(orgData, { useExistingTask, createEpicLessTask }),
+    [doContribute, orgData, useExistingTask, createEpicLessTask],
   );
 
   let contents = null;
@@ -89,20 +94,20 @@ const ContributeWorkModal = ({
         {hasDevOrg ? (
           <Trans i18nKey="contributeWorkFromTaskWithDevOrg">
             <p>
-              <b>To contribute the work you’ve done in your scratch org,</b>{' '}
-              you’ll start by creating a new task.
+              <b>To contribute the work you’ve done in your Scratch Org,</b>{' '}
+              you’ll start by creating a new Task.
             </p>
             <p>
-              You cannot convert your scratch org into the Dev Org for this Task
+              You cannot convert your Scratch Org into the Dev Org for this Task
               because there is already an existing Dev Org.
             </p>
           </Trans>
         ) : (
           <p>
             <Trans i18nKey="contributeWorkFromTask">
-              <b>To contribute the work you’ve done in your scratch org,</b>{' '}
-              you’ll start by making this org the Dev Org for <em>this</em> task
-              or a <em>new</em> task.
+              <b>To contribute the work you’ve done in your Scratch Org,</b>{' '}
+              you’ll start by making this Org the Dev Org for <em>this</em> Task
+              or a <em>new</em> Task.
             </Trans>
           </p>
         )}
@@ -138,20 +143,71 @@ const ContributeWorkModal = ({
         </RadioGroup>
       </>
     );
-  } /* istanbul ignore else */ else if (epic) {
+  } else if (epic) {
     contents = (
       <Trans i18nKey="contributeWorkFromEpic">
         <p>
-          <b>To contribute the work you’ve done in your scratch org,</b> you’ll
-          start by creating a new task.
+          <b>To contribute the work you’ve done in your Scratch Org,</b> you’ll
+          start by creating a new Task.
         </p>
         <p>
-          Your scratch org will become the Dev Org for the newly created task.
+          Your Scratch Org will become the Dev Org for the newly created Task.
         </p>
       </Trans>
     );
-  } /* istanbul ignore next */ else if (project) {
-    // @@@
+  } else {
+    const handleEpicLessTaskChange = (
+      event: React.ChangeEvent<HTMLInputElement>,
+    ) => {
+      if (event.target.value === 'true') {
+        setCreateEpicLessTask(true);
+      } else {
+        setCreateEpicLessTask(false);
+      }
+    };
+
+    contents = (
+      <>
+        <Trans i18nKey="contributeWorkFromProject">
+          <p>
+            <b>To contribute the work you’ve done in your Scratch Org,</b> start
+            by creating a new Task (with or without a new Epic).
+          </p>
+          <p>
+            Your Scratch Org will become the Dev Org for the newly created Task.
+          </p>
+        </Trans>
+        <RadioGroup
+          assistiveText={{
+            label: i18n.t('Select Task Type'),
+            required: i18n.t('Required'),
+          }}
+          className="slds-p-left_none"
+          name="project-contribute-work"
+          required
+          onChange={handleEpicLessTaskChange}
+        >
+          <Radio
+            id="org-epic-and-task"
+            labels={{
+              label: i18n.t('Create a new Epic and Task'),
+            }}
+            checked={!createEpicLessTask}
+            name="project-contribute-work"
+            value="false"
+          />
+          <Radio
+            id="org-epic-less-task"
+            labels={{
+              label: i18n.t('Create a new Task with no Epic'),
+            }}
+            checked={createEpicLessTask}
+            name="project-contribute-work"
+            value="true"
+          />
+        </RadioGroup>
+      </>
+    );
   }
 
   return (
@@ -170,7 +226,7 @@ const ContributeWorkModal = ({
           />
         ) : null,
       ]}
-      prompt={hasPermissions ? null : 'warning'}
+      prompt={hasPermissions ? undefined : 'warning'}
       onRequestClose={doClose}
     >
       <div className="slds-grid slds-wrap slds-p-around_medium">
