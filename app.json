@@ -70,9 +70,6 @@
     },
     "worker": {
       "quantity": 1
-    },
-    "worker-short": {
-      "quantity": 0
     }
   },
   "stack": "heroku-18",

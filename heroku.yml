@@ -13,10 +13,6 @@ run:
     command:
       - python manage.py rqworker default
     image: web
-  worker-short:
-    command:
-      - honcho start -f Procfile_worker_short
-    image: web
 release:
   command:
     - python manage.py migrate --noinput
